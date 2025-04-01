@@ -152,75 +152,101 @@ const PromptManagement = () => {
     }
   };
 
-  // If no API is available, use mock data
+  // Fetch prompts from API or use fallback if API fails
   useEffect(() => {
-    if (!promptsData && !loading && !error) {
-      const mockPrompts: Prompt[] = [
-        {
-          id: 1,
-          name: "Data Analysis Assistant",
-          description: "Specialized prompt for analyzing scraped data",
-          template: `You are a data analysis assistant specialized in web scraping data.
+    const getPrompts = async () => {
+      if (!promptsData && !loading) {
+        try {
+          const response = await fetch(
+            `${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/prompts`,
+          );
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch prompts: ${response.statusText}`);
+          }
+
+          const result = await response.json();
+          if (result.data && result.data.length > 0) {
+            setPrompts(result.data);
+            setSelectedPrompt(
+              result.data.find((p: Prompt) => p.isDefault) || result.data[0],
+            );
+            return;
+          }
+        } catch (err) {
+          console.error("Error fetching prompts directly:", err);
+        }
+
+        // If API fails or returns no data, use default prompts
+        const defaultPrompts: Prompt[] = [
+          {
+            id: 1,
+            name: "Data Analysis Assistant",
+            description: "Specialized prompt for analyzing scraped data",
+            template: `You are a data analysis assistant specialized in web scraping data.
 
 Context: {{context}}
 Scraped Data: {{scraped_data}}
 User Query: {{query}}
 
 Analyze the data provided and respond to the user's query with insights, patterns, and actionable information. Include relevant statistics when possible. Format your response with clear headings and bullet points for readability.`,
-          isDefault: true,
-        },
-        {
-          id: 2,
-          name: "E-commerce Product Analyzer",
-          description: "Analyze product data from e-commerce sites",
-          template: `You are an e-commerce product analysis specialist.
+            isDefault: true,
+          },
+          {
+            id: 2,
+            name: "E-commerce Product Analyzer",
+            description: "Analyze product data from e-commerce sites",
+            template: `You are an e-commerce product analysis specialist.
 
 Scraped Data: {{scraped_data}}
 User Query: {{query}}
 
 Analyze the product data and provide insights on pricing trends, competitive positioning, and product features. Include recommendations for pricing strategy and marketing focus.`,
-          isDefault: false,
-        },
-        {
-          id: 3,
-          name: "News Summarizer",
-          description: "Summarize news articles with key points",
-          template: `You are a news summarization assistant.
+            isDefault: false,
+          },
+          {
+            id: 3,
+            name: "News Summarizer",
+            description: "Summarize news articles with key points",
+            template: `You are a news summarization assistant.
 
 Article Content: {{scraped_data}}
 User Query: {{query}}
 
 Provide a concise summary of the news article, highlighting the key points, main entities involved, and core message. Include a brief analysis of potential implications if relevant.`,
-          isDefault: false,
-        },
-        {
-          id: 4,
-          name: "SEO Content Analyzer",
-          description: "Analyze content for SEO optimization",
-          template: `You are an SEO content analysis specialist.
+            isDefault: false,
+          },
+          {
+            id: 4,
+            name: "SEO Content Analyzer",
+            description: "Analyze content for SEO optimization",
+            template: `You are an SEO content analysis specialist.
 
 Content: {{scraped_data}}
 User Query: {{query}}
 
 Analyze the content for SEO effectiveness. Identify keyword density, heading structure, meta information quality, and content readability. Provide specific recommendations for improving SEO performance.`,
-          isDefault: false,
-        },
-        {
-          id: 5,
-          name: "Competitive Research",
-          description: "Compare data across competitor websites",
-          template: `You are a competitive intelligence specialist.
+            isDefault: false,
+          },
+          {
+            id: 5,
+            name: "Competitive Research",
+            description: "Compare data across competitor websites",
+            template: `You are a competitive intelligence specialist.
 
 Competitor Data: {{scraped_data}}
 User Query: {{query}}
 
 Analyze the competitor data and identify strengths, weaknesses, unique selling propositions, and market positioning. Compare pricing strategies, product offerings, and messaging approaches. Provide strategic recommendations based on this analysis.`,
-          isDefault: false,
-        },
-      ];
-      setPrompts(mockPrompts);
-      setSelectedPrompt(mockPrompts[0]);
-    }
+            isDefault: false,
+          },
+        ];
+        setPrompts(defaultPrompts);
+        setSelectedPrompt(defaultPrompts[0]);
+      }
+    };
+
+    getPrompts();
   }, [promptsData, loading, error, fetchData]);
 
   return (

@@ -63,7 +63,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   );
   const [isTyping, setIsTyping] = useState(false);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
     // Add user message
@@ -77,39 +77,80 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
 
-    // Simulate AI typing
+    // Show AI typing indicator
     setIsTyping(true);
 
-    // Simulate AI response after delay
-    setTimeout(() => {
+    try {
+      // Get AI response
+      const responseContent = await generateAIResponse(
+        inputValue,
+        selectedDataset,
+      );
+
+      // Create AI message
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: generateAIResponse(inputValue, selectedDataset),
+        content: responseContent,
         sender: "ai",
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error("Error getting AI response:", error);
+      // Add error message
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content:
+          "I'm sorry, I encountered an error while processing your request. Please try again later.",
+        sender: "ai",
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
-  const generateAIResponse = (query: string, datasetId?: string): string => {
-    // This would be replaced with actual AI response logic
-    const dataset = datasets.find((d) => d.id === datasetId);
+  const generateAIResponse = async (
+    query: string,
+    datasetId?: string,
+  ): Promise<string> => {
+    try {
+      // Get the dataset if available
+      const dataset = datasets.find((d) => d.id === datasetId);
 
-    if (
-      query.toLowerCase().includes("data") ||
-      query.toLowerCase().includes("information")
-    ) {
-      return `Based on the ${dataset?.name || "selected dataset"}, I've analyzed the following patterns:\n\n- The data contains 245 entries with complete information\n- There are 3 main categories identified\n- The average value across all entries is 78.3\n\nWould you like me to provide more specific insights?`;
-    } else if (
-      query.toLowerCase().includes("summary") ||
-      query.toLowerCase().includes("overview")
-    ) {
-      return `# Summary of ${dataset?.name || "Dataset"}\n\n## Key Findings\n- Most frequent category: Electronics (42%)\n- Price range: $12.99 - $1,299.99\n- Top brands: TechCo, ElectroMax, DigiPro\n\n## Recommendations\n1. Focus marketing on the $100-$300 price range\n2. Increase inventory for TechCo products\n3. Consider expanding the smartphone accessories category`;
-    } else {
-      return `I've analyzed the ${dataset?.name || "selected dataset"} based on your query. The data shows interesting patterns that might be relevant to your question. Would you like me to:\n\n1. Provide a detailed breakdown of the data?\n2. Generate visualizations of key metrics?\n3. Compare this dataset with other scraped information?`;
+      // Call the chat service API
+      const response = await fetch(
+        `${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/chat/message`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+          },
+          body: JSON.stringify({
+            message: query,
+            datasetId: datasetId,
+            modelId: 1, // Default model ID, could be made configurable
+            conversationId: null, // New conversation
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to get AI response: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      return (
+        result.data?.message?.content ||
+        "I'm sorry, I couldn't process your request at this time."
+      );
+    } catch (error) {
+      console.error("Error generating AI response:", error);
+      return `I apologize, but I encountered an error processing your request. The system may be experiencing technical difficulties. Would you like me to try a different approach to analyze the ${datasetId ? datasets.find((d) => d.id === datasetId)?.name || "dataset" : "data"}?`;
     }
   };
 

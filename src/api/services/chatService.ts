@@ -1,6 +1,16 @@
 import { getModelById } from "./modelService";
-import { getPromptById } from "./promptService";
-import { callOpenAI, callAnthropic, callGoogleAI } from "./aiProviders";
+import {
+  getPromptById,
+  getDefaultPrompt,
+  processPromptTemplate,
+} from "./promptService";
+import {
+  callOpenAI,
+  callAnthropic,
+  callGoogleAI,
+  callMistralAI,
+  callModel,
+} from "./aiProviders";
 
 // Types
 interface Message {
@@ -16,6 +26,7 @@ interface Conversation {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  userId?: string;
 }
 
 // Import the Conversation model
@@ -28,8 +39,10 @@ import axios from "axios";
 export const sendMessage = async (
   message: string,
   conversationId?: string,
-  modelId: number = 1, // Default to GPT-4
+  modelId: number = 1, // Default to model ID 1
   datasetId?: string,
+  promptId?: number,
+  formatOptions?: any,
 ): Promise<{ message: Message; conversation: Conversation }> => {
   try {
     // Get or create conversation
@@ -69,15 +82,21 @@ export const sendMessage = async (
       throw new Error("AI model not found");
     }
 
-    // Get the default prompt if not specified
-    const prompt = await getPromptById(1); // Default to Data Analysis Assistant
+    // Get the prompt template (either specified or default)
+    const prompt = promptId
+      ? await getPromptById(promptId)
+      : await getDefaultPrompt();
+
+    if (!prompt) {
+      throw new Error("No prompt template found");
+    }
 
     // Get dataset context if provided
     let datasetContext = "";
     if (datasetId) {
       try {
         const scrapedData = await axios.get(
-          `http://localhost:3001/api/scrape/${datasetId}`,
+          `${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/scrape/${datasetId}`,
         );
         if (scrapedData.data && scrapedData.data.data) {
           datasetContext = JSON.stringify(scrapedData.data.data);
@@ -87,35 +106,78 @@ export const sendMessage = async (
       }
     }
 
-    // Prepare the prompt with context
-    let promptTemplate = prompt
-      ? prompt.template
-      : "You are an AI assistant. Please answer the following query: {{query}}";
-    promptTemplate = promptTemplate.replace(
-      "{{context}}",
-      "Intelligent Scraping Studio AI Assistant",
+    // Get previous context from conversation if needed
+    const previousMessages = conversation.messages
+      .slice(-model.memoryRetention || -5) // Use model's memory retention setting or default to 5
+      .map(
+        (msg) =>
+          `${msg.sender === "user" ? "User" : "Assistant"}: ${msg.content}`,
+      )
+      .join("\n\n");
+
+    // Prepare the prompt variables
+    const promptVariables = {
+      context: "Intelligent Scraping Studio AI Assistant",
+      scraped_data: datasetContext || "No specific dataset provided",
+      query: message,
+      previous_messages: previousMessages,
+      timestamp: new Date().toISOString(),
+      user_name: "User", // This could be replaced with actual user name if available
+    };
+
+    // Process the prompt template with variables
+    const processedPrompt = processPromptTemplate(
+      prompt.template,
+      promptVariables,
     );
-    promptTemplate = promptTemplate.replace(
-      "{{scraped_data}}",
-      datasetContext || "No specific dataset provided",
-    );
-    promptTemplate = promptTemplate.replace("{{query}}", message);
 
     // Call the appropriate AI model API based on the provider
     let responseContent = "";
 
     try {
-      if (model.provider === "OpenAI") {
-        // Call OpenAI API
-        const openaiResponse = await callOpenAI(promptTemplate, model);
-        responseContent = openaiResponse;
-      } else if (model.provider === "Anthropic") {
-        // Call Anthropic API
-        const anthropicResponse = await callAnthropic(promptTemplate, model);
-        responseContent = anthropicResponse;
-      } else {
-        // Fallback to a generic response if the model provider is not implemented
-        responseContent = `I've analyzed your query about "${message}". Based on the available data, I can provide insights and recommendations tailored to your specific needs. Would you like me to elaborate on any particular aspect?`;
+      // Prepare model options based on formatting preferences
+      const modelOptions = {
+        temperature:
+          formatOptions?.temperature || model.parameters?.temperature || 0.7,
+        maxTokens: formatOptions?.maxTokens || model.contextSize || 2048,
+        topP: formatOptions?.topP || model.parameters?.topP || 1,
+        stream: formatOptions?.stream || model.streamingEnabled || false,
+      };
+
+      // Call the model using the unified callModel function
+      const modelResponse = await callModel(
+        modelId,
+        processedPrompt,
+        modelOptions,
+      );
+      responseContent = modelResponse.text;
+
+      // Apply formatting based on formatOptions if needed
+      if (formatOptions) {
+        // Add introductory message if specified
+        if (formatOptions.introMessage) {
+          responseContent = `${formatOptions.introMessage}\n\n${responseContent}`;
+        }
+
+        // Add concluding message if specified
+        if (formatOptions.conclusionMessage) {
+          responseContent = `${responseContent}\n\n${formatOptions.conclusionMessage}`;
+        }
+
+        // Add follow-up questions if enabled
+        if (formatOptions.suggestFollowUp) {
+          responseContent = `${responseContent}\n\n**Follow-up Questions You Might Consider:**\n1. Can you provide more details about specific aspects of this data?\n2. How does this compare to industry benchmarks?\n3. What actionable steps would you recommend based on this analysis?`;
+        }
+
+        // Add timestamp if enabled
+        if (formatOptions.includeTimestamp) {
+          responseContent = `${responseContent}\n\n*Generated at: ${new Date().toISOString()}*`;
+        }
+
+        // Add data source if enabled and dataset is provided
+        if (formatOptions.includeSource && datasetId) {
+          responseContent = `${responseContent}\n\n*Source: Dataset ID ${datasetId}*`;
+        }
       }
     } catch (error) {
       console.error("Error calling AI model API:", error);
@@ -154,9 +216,37 @@ export const sendMessage = async (
 /**
  * Get all conversations
  */
-export const getConversations = async (): Promise<any[]> => {
-  const conversations = await ConversationModel.findAll();
-  return conversations.map((conversation) => conversation.toJSON());
+export const getConversations = async (
+  userId?: string,
+): Promise<Conversation[]> => {
+  try {
+    const query = userId ? { where: { userId } } : {};
+    const conversations = await ConversationModel.findAll({
+      ...query,
+      order: [["updatedAt", "DESC"]],
+    });
+    return conversations.map(
+      (conversation) => conversation.toJSON() as Conversation,
+    );
+  } catch (error) {
+    console.error("Error fetching conversations:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get a conversation by ID
+ */
+export const getConversationById = async (
+  id: string,
+): Promise<Conversation | null> => {
+  try {
+    const conversation = await ConversationModel.findByPk(id);
+    return conversation ? (conversation.toJSON() as Conversation) : null;
+  } catch (error) {
+    console.error(`Error fetching conversation with ID ${id}:`, error);
+    throw error;
+  }
 };
 
 /**
@@ -165,7 +255,8 @@ export const getConversations = async (): Promise<any[]> => {
 export const saveConversation = async (
   messages: Message[],
   title?: string,
-): Promise<any> => {
+  userId?: string,
+): Promise<Conversation> => {
   try {
     const conversationTitle =
       title ||
@@ -179,11 +270,47 @@ export const saveConversation = async (
       messages,
       createdAt: new Date(),
       updatedAt: new Date(),
+      userId,
     });
 
-    return conversation.toJSON();
+    return conversation.toJSON() as Conversation;
   } catch (error) {
     console.error("Error saving conversation:", error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a conversation
+ */
+export const deleteConversation = async (id: string): Promise<boolean> => {
+  try {
+    const conversation = await ConversationModel.findByPk(id);
+    if (!conversation) return false;
+
+    await conversation.destroy();
+    return true;
+  } catch (error) {
+    console.error(`Error deleting conversation with ID ${id}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Update a conversation title
+ */
+export const updateConversationTitle = async (
+  id: string,
+  title: string,
+): Promise<Conversation | null> => {
+  try {
+    const conversation = await ConversationModel.findByPk(id);
+    if (!conversation) return null;
+
+    await conversation.update({ title });
+    return conversation.toJSON() as Conversation;
+  } catch (error) {
+    console.error(`Error updating conversation title for ID ${id}:`, error);
     throw error;
   }
 };

@@ -73,20 +73,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
       setError(null);
 
-      // In a real implementation, this would call the login API
-      // For now, we'll simulate a successful login for admin@example.com
-      if (email === "admin@example.com" && password === "password") {
-        const userData: User = {
-          id: "1",
-          name: "Admin User",
-          email: "admin@example.com",
-          role: "admin",
-          status: "active",
-        };
+      // Call the actual login API endpoint
+      const response = await fetch(
+        `${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/users/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        },
+      );
 
-        // Store the user data and token
-        setUser(userData);
-        localStorage.setItem("auth_token", "simulated_jwt_token");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || `Login failed with status ${response.status}`,
+        );
+      }
+
+      const { data, token } = await response.json();
+
+      if (data && token) {
+        setUser(data);
+        localStorage.setItem("auth_token", token);
         return true;
       } else {
         setError(new Error("Invalid email or password"));

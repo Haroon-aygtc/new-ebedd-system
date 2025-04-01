@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,12 +18,48 @@ import DataDashboard from "./DataDashboard";
 import ModelManagement from "./ModelManagement";
 
 const Home = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [activeTab, setActiveTab] = useState("scraping");
+  // Get initial dark mode preference from localStorage or system preference
+  const getInitialDarkMode = () => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      return savedTheme === "dark";
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+
+  const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
+  const [activeTab, setActiveTab] = useState(() => {
+    // Restore last active tab from localStorage or default to scraping
+    return localStorage.getItem("activeTab") || "scraping";
+  });
+
+  // Save active tab to localStorage when it changes
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    localStorage.setItem("activeTab", tab);
+  };
+
+  // Apply dark mode on initial render and when it changes
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [isDarkMode]);
 
   const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-    // In a real implementation, this would toggle a class on the body or use a theme context
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+
+    // Apply dark mode to the document
+    if (newMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
   };
 
   return (
@@ -38,7 +74,7 @@ const Home = () => {
             <Button
               variant={activeTab === "scraping" ? "default" : "ghost"}
               className="w-full justify-start"
-              onClick={() => setActiveTab("scraping")}
+              onClick={() => handleTabChange("scraping")}
             >
               <LayoutDashboardIcon className="mr-2 h-4 w-4" />
               Scraping Studio
@@ -46,7 +82,7 @@ const Home = () => {
             <Button
               variant={activeTab === "chat" ? "default" : "ghost"}
               className="w-full justify-start"
-              onClick={() => setActiveTab("chat")}
+              onClick={() => handleTabChange("chat")}
             >
               <MessageSquareIcon className="mr-2 h-4 w-4" />
               Chat Interface
@@ -54,7 +90,7 @@ const Home = () => {
             <Button
               variant={activeTab === "dashboard" ? "default" : "ghost"}
               className="w-full justify-start"
-              onClick={() => setActiveTab("dashboard")}
+              onClick={() => handleTabChange("dashboard")}
             >
               <BarChart3Icon className="mr-2 h-4 w-4" />
               Data Dashboard
@@ -62,7 +98,7 @@ const Home = () => {
             <Button
               variant={activeTab === "models" ? "default" : "ghost"}
               className="w-full justify-start"
-              onClick={() => setActiveTab("models")}
+              onClick={() => handleTabChange("models")}
             >
               <Settings2Icon className="mr-2 h-4 w-4" />
               Model Management
@@ -116,7 +152,7 @@ const Home = () => {
           <div className="flex-1 overflow-auto p-4">
             <Tabs
               value={activeTab}
-              onValueChange={setActiveTab}
+              onValueChange={handleTabChange}
               className="w-full"
             >
               <div className="md:hidden mb-4">

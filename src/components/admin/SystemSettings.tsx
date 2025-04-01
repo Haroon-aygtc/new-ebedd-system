@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -36,13 +36,78 @@ import {
 const SystemSettings = () => {
   const [activeTab, setActiveTab] = useState("general");
   const [isSaving, setIsSaving] = useState(false);
+  const [settings, setSettings] = useState({
+    openaiKey: process.env.OPENAI_API_KEY || "",
+    anthropicKey: process.env.ANTHROPIC_API_KEY || "",
+    googleKey: process.env.GOOGLE_API_KEY || "",
+    mistralKey: "",
+    huggingfaceKey: "",
+  });
 
-  const handleSaveSettings = () => {
+  // Fetch settings from API on component mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/settings`,
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            // Update state with fetched settings
+            setSettings((prevSettings) => ({
+              ...prevSettings,
+              ...data.data,
+              // Don't overwrite API keys if they're already set from env vars
+              openaiKey: prevSettings.openaiKey || data.data.openaiKey || "",
+              anthropicKey:
+                prevSettings.anthropicKey || data.data.anthropicKey || "",
+              googleKey: prevSettings.googleKey || data.data.googleKey || "",
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
+  const handleSaveSettings = async () => {
     setIsSaving(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Save settings to API
+      const response = await fetch(
+        `${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/settings`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+          },
+          body: JSON.stringify(settings),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to save settings: ${response.statusText}`);
+      }
+
+      // Show success message or notification here
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      // Show error message or notification here
+    } finally {
       setIsSaving(false);
-    }, 1500);
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    setSettings((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
   return (
@@ -822,7 +887,11 @@ const SystemSettings = () => {
                   <Input
                     id="openai-key"
                     type="password"
-                    defaultValue="sk-..."
+                    value={settings.openaiKey}
+                    onChange={(e) =>
+                      handleInputChange("openaiKey", e.target.value)
+                    }
+                    placeholder="sk-..."
                   />
                 </div>
 
@@ -831,23 +900,49 @@ const SystemSettings = () => {
                   <Input
                     id="anthropic-key"
                     type="password"
-                    defaultValue="sk-ant-..."
+                    value={settings.anthropicKey}
+                    onChange={(e) =>
+                      handleInputChange("anthropicKey", e.target.value)
+                    }
+                    placeholder="sk-ant-..."
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="google-key">Google AI API Key</Label>
-                  <Input id="google-key" type="password" defaultValue="..." />
+                  <Input
+                    id="google-key"
+                    type="password"
+                    value={settings.googleKey}
+                    onChange={(e) =>
+                      handleInputChange("googleKey", e.target.value)
+                    }
+                    placeholder="AIza..."
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="mistral-key">Mistral AI API Key</Label>
-                  <Input id="mistral-key" type="password" />
+                  <Input
+                    id="mistral-key"
+                    type="password"
+                    value={settings.mistralKey}
+                    onChange={(e) =>
+                      handleInputChange("mistralKey", e.target.value)
+                    }
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="huggingface-key">Hugging Face API Key</Label>
-                  <Input id="huggingface-key" type="password" />
+                  <Input
+                    id="huggingface-key"
+                    type="password"
+                    value={settings.huggingfaceKey}
+                    onChange={(e) =>
+                      handleInputChange("huggingfaceKey", e.target.value)
+                    }
+                  />
                 </div>
               </CardContent>
               <CardFooter>

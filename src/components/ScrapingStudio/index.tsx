@@ -153,9 +153,19 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({
     setProgress(0);
     
     try {
-      // Use a proxy service to load the URL to avoid CORS issues
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(urlToLoad)}`;
-      const response = await fetch(proxyUrl);
+      // Use our backend scraping service to load the URL
+      const response = await fetch(`${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/scrape/preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url: urlToLoad })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to load URL: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
       if (data.contents) {
@@ -207,40 +217,32 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({
   const getAiSuggestions = async (htmlContent: string) => {
     setIsAiLoading(true);
     try {
-      // Call the AI service to analyze the HTML and suggest selectors
-      const suggestions = await callAiForSelectors(htmlContent);
-      setAiSuggestions(suggestions);
+      // Call the backend AI service to analyze the HTML and suggest selectors
+      const response = await fetch(`${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/scrape/suggest-selectors`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+        },
+        body: JSON.stringify({ html: htmlContent, url })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get AI suggestions: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      setAiSuggestions(result.data || []);
     } catch (error) {
       console.error('Error getting AI suggestions:', error);
-      // Fallback to basic suggestions if AI service fails
-      const basicSuggestions = [
-        {
-          selector: ".product-title, h1, .title, .name",
-          type: "text",
-          description: "Product title or main heading"
-        },
-        {
-          selector: ".price, .product-price, [data-price]",
-          type: "text",
-          description: "Price information"
-        },
-        {
-          selector: ".product-image, img[src*='product'], .main-image",
-          type: "image",
-          description: "Product image"
-        },
-        {
-          selector: ".description, .product-description, [data-description]",
-          type: "text",
-          description: "Product description"
-        },
-        {
-          selector: ".rating, .stars, [data-rating]",
-          type: "text",
-          description: "Product rating"
-        }
-      ];
-      setAiSuggestions(basicSuggestions);
+      // If the API call fails, use the callAiForSelectors as a fallback
+      try {
+        const suggestions = await callAiForSelectors(htmlContent);
+        setAiSuggestions(suggestions);
+      } catch (fallbackError) {
+        console.error('Fallback AI suggestion also failed:', fallbackError);
+        setAiSuggestions([]);
+      }
     } finally {
       setIsAiLoading(false);
     }
@@ -307,77 +309,39 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({
   
   const scrapeCurrentPage = async () => {
     try {
-      const iframe = iframeRef.current;
-      if (!iframe) throw new Error('Preview not loaded');
-      
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!iframeDoc) throw new Error('Cannot access iframe content');
-      
-      // Extract data based on selected elements
-      const extractedItems: any[] = [];
-      
-      // Get all potential item containers (for list pages)
-      const containers = iframeDoc.querySelectorAll('.item, .product, .card, li, article');
-      const useContainers = containers.length > 1;
-      
-      if (useContainers) {
-        // Process each container as an item
-        for (const container of containers) {
-          const item: Record<string, any> = {};
-          
-          for (const element of selectedElements) {
-            try {
-              const elements = container.querySelectorAll(element.selector);
-              if (elements.length > 0) {
-                if (element.type === 'text') {
-                  item[element.name || element.selector] = elements[0].textContent?.trim();
-                } else if (element.type === 'image') {
-                  const imgSrc = elements[0].getAttribute('src');
-                  item[element.name || element.selector] = imgSrc;
-                } else if (element.type === 'link') {
-                  const href = elements[0].getAttribute('href');
-                  item[element.name || element.selector] = href;
-                }
-              }
-            } catch (error) {
-              console.error(`Error extracting ${element.selector}:`, error);
-            }
+      // Use the backend scraping service instead of client-side scraping
+      const response = await fetch(`${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/scrape/extract`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+        },
+        body: JSON.stringify({
+          url: url,
+          selectors: selectedElements.map(el => ({
+            selector: el.selector,
+            type: el.type,
+            name: el.name || el.selector
+          })),
+          options: {
+            waitForSelector: selectedElements[0]?.selector,
+            javascript: scrapingOptions.waitForJs,
+            pagination: scrapingOptions.followPagination,
+            extractionMode: scrapingOptions.extractionMode,
+            proxy: scrapingOptions.proxy,
+            delay: scrapingOptions.requestDelay,
+            timeout: scrapingOptions.timeout
           }
-          
-          if (Object.keys(item).length > 0) {
-            extractedItems.push(item);
-          }
-        }
-      } else {
-        // Process the whole page
-        const item: Record<string, any> = {};
-        
-        for (const element of selectedElements) {
-          try {
-            const elements = iframeDoc.querySelectorAll(element.selector);
-            
-            if (elements.length > 0) {
-              if (element.type === 'text') {
-                item[element.name || element.selector] = elements[0].textContent?.trim();
-              } else if (element.type === 'image') {
-                const imgSrc = elements[0].getAttribute('src');
-                item[element.name || element.selector] = imgSrc;
-              } else if (element.type === 'link') {
-                const href = elements[0].getAttribute('href');
-                item[element.name || element.selector] = href;
-              }
-            }
-          } catch (error) {
-            console.error(`Error extracting ${element.selector}:`, error);
-          }
-        }
-        
-        if (Object.keys(item).length > 0) {
-          extractedItems.push(item);
-        }
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Scraping failed with status ${response.status}`);
       }
       
-      return extractedItems;
+      const result = await response.json();
+      return result.data || [];
     } catch (error) {
       console.error('Error scraping page:', error);
       throw error;

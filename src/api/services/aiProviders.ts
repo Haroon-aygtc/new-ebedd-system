@@ -37,8 +37,10 @@ export const callOpenAI = async (
 ): Promise<ModelResponse> => {
   try {
     const apiKey = model.apiKey || process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OpenAI API key not found");
+    if (!apiKey || apiKey === "your_openai_api_key") {
+      throw new Error(
+        "Valid OpenAI API key not found. Please configure your API key in the settings.",
+      );
     }
 
     const response = await axios.post(
@@ -92,8 +94,10 @@ export const callAnthropic = async (
 ): Promise<ModelResponse> => {
   try {
     const apiKey = model.apiKey || process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("Anthropic API key not found");
+    if (!apiKey || apiKey === "your_anthropic_api_key") {
+      throw new Error(
+        "Valid Anthropic API key not found. Please configure your API key in the settings.",
+      );
     }
 
     const response = await axios.post(
@@ -145,8 +149,10 @@ export const callGoogleAI = async (
 ): Promise<ModelResponse> => {
   try {
     const apiKey = model.apiKey || process.env.GOOGLE_API_KEY;
-    if (!apiKey) {
-      throw new Error("Google AI API key not found");
+    if (!apiKey || apiKey === "your_google_api_key") {
+      throw new Error(
+        "Valid Google AI API key not found. Please configure your API key in the settings.",
+      );
     }
 
     const response = await axios.post(
@@ -193,6 +199,58 @@ export const callGoogleAI = async (
 };
 
 /**
+ * Call Mistral AI API with the given prompt and model configuration
+ */
+export const callMistralAI = async (
+  model: any,
+  prompt: string,
+  options: ModelRequestOptions = {},
+): Promise<ModelResponse> => {
+  try {
+    const apiKey = model.apiKey || process.env.MISTRAL_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "Valid Mistral AI API key not found. Please configure your API key in the settings.",
+      );
+    }
+
+    const response = await axios.post(
+      "https://api.mistral.ai/v1/chat/completions",
+      {
+        model: model.version || "mistral-large-latest",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: options.maxTokens || model.parameters?.max_tokens || 2048,
+        temperature:
+          options.temperature || model.parameters?.temperature || 0.7,
+        top_p: options.topP || model.parameters?.topP || 0.9,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+      },
+    );
+
+    return {
+      text: response.data.choices[0].message.content,
+      usage: {
+        promptTokens: response.data.usage?.prompt_tokens || 0,
+        completionTokens: response.data.usage?.completion_tokens || 0,
+        totalTokens: response.data.usage?.total_tokens || 0,
+      },
+      metadata: {
+        model: model.version,
+        provider: model.provider,
+      },
+    };
+  } catch (error) {
+    console.error("Error calling Mistral AI API:", error);
+    throw error;
+  }
+};
+
+/**
  * Call an AI model with the given prompt
  */
 export const callModel = async (
@@ -215,6 +273,9 @@ export const callModel = async (
         return await callAnthropic(model, prompt, options);
       case "google":
         return await callGoogleAI(model, prompt, options);
+      case "mistral":
+      case "mistral ai":
+        return await callMistralAI(model, prompt, options);
       default:
         throw new Error(`Unsupported provider: ${model.provider}`);
     }
