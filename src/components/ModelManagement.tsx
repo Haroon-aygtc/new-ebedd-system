@@ -34,17 +34,31 @@ import {
   TestTube,
   Trash2,
   RefreshCw,
+  Plus,
 } from "lucide-react";
-import {
-  getModels,
-  updateModel,
-  createModel,
-  deleteModel,
-} from "@/api/services/modelService";
-import { getPromptById } from "@/api/services/promptService";
+import axios from "axios";
+import { useModels } from "@/hooks/useModels";
 
 interface ModelManagementProps {
   className?: string;
+}
+
+interface Model {
+  id: number;
+  name: string;
+  provider: string;
+  apiKey?: string;
+  version?: string;
+  parameters?: any;
+  isActive?: boolean;
+  contextSize?: number;
+  memoryRetention?: number;
+  defaultForQueryType?: string;
+  rateLimit?: number;
+  responseVerbosity?: number;
+  dataPrioritization?: string;
+  fineTuned?: boolean;
+  streamingEnabled?: boolean;
 }
 
 const ModelManagement: React.FC<ModelManagementProps> = ({
@@ -56,25 +70,127 @@ const ModelManagement: React.FC<ModelManagementProps> = ({
     "How would you summarize the data from my last scraping session?",
   );
   const [isTestLoading, setIsTestLoading] = useState(false);
-  const [models, setModels] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const {
+    models,
+    loading,
+    error,
+    refreshModels,
+    createModel,
+    updateModel,
+    deleteModel,
+    testModel,
+  } = useModels();
+  const [selectedModel, setSelectedModel] = useState<Model | null>(null);
+  const [editedModel, setEditedModel] = useState<Model | null>(null);
+  const [isCreatingModel, setIsCreatingModel] = useState(false);
+  const [newModel, setNewModel] = useState<Partial<Model>>({
+    name: "",
+    provider: "OpenAI",
+    version: "",
+    apiKey: "",
+    contextSize: 4096,
+    memoryRetention: 5,
+    defaultForQueryType: "general",
+    rateLimit: 60,
+    responseVerbosity: 50,
+    dataPrioritization: "balanced",
+    fineTuned: false,
+    streamingEnabled: true,
+    parameters: {
+      temperature: 0.7,
+      topP: 1,
+    },
+  });
 
   useEffect(() => {
-    fetchModels();
-  }, []);
+    refreshModels();
+  }, [refreshModels]);
 
-  const fetchModels = async () => {
+  const handleSelectModel = (model: Model) => {
+    setSelectedModel(model);
+    setEditedModel({
+      ...model,
+      apiKey: model.apiKey ? "********" : "",
+    });
+    setIsCreatingModel(false);
+  };
+
+  const handleCreateModel = () => {
+    setIsCreatingModel(true);
+    setSelectedModel(null);
+    setEditedModel(null);
+  };
+
+  const handleCancelCreate = () => {
+    setIsCreatingModel(false);
+  };
+
+  const handleSaveNewModel = async () => {
     try {
-      setLoading(true);
-      setError("");
-      const fetchedModels = await getModels();
-      setModels(fetchedModels);
+      const result = await createModel(newModel as any);
+      if (result) {
+        setIsCreatingModel(false);
+        setNewModel({
+          name: "",
+          provider: "OpenAI",
+          version: "",
+          apiKey: "",
+          contextSize: 4096,
+          memoryRetention: 5,
+          defaultForQueryType: "general",
+          rateLimit: 60,
+          responseVerbosity: 50,
+          dataPrioritization: "balanced",
+          fineTuned: false,
+          streamingEnabled: true,
+          parameters: {
+            temperature: 0.7,
+            topP: 1,
+          },
+        });
+        refreshModels();
+      }
     } catch (err) {
-      console.error("Error fetching models:", err);
-      setError("Failed to load models. Please try again later.");
-    } finally {
-      setLoading(false);
+      console.error("Error creating model:", err);
+    }
+  };
+
+  const handleUpdateModel = async () => {
+    if (!selectedModel || !editedModel) return;
+
+    try {
+      // Don't send masked API key
+      const modelToUpdate = { ...editedModel };
+      if (modelToUpdate.apiKey === "********") {
+        delete modelToUpdate.apiKey;
+      }
+
+      const result = await updateModel(selectedModel.id, modelToUpdate);
+      if (result) {
+        setSelectedModel(result);
+        setEditedModel({
+          ...result,
+          apiKey: result.apiKey ? "********" : "",
+        });
+        refreshModels();
+      }
+    } catch (err) {
+      console.error("Error updating model:", err);
+    }
+  };
+
+  const handleDeleteModel = async () => {
+    if (!selectedModel) return;
+
+    try {
+      const result = await deleteModel(selectedModel.id);
+      if (result) {
+        setSelectedModel(null);
+        setEditedModel(null);
+        refreshModels();
+      }
+    } catch (err) {
+      console.error("Error deleting model:", err);
     }
   };
 
@@ -82,25 +198,29 @@ const ModelManagement: React.FC<ModelManagementProps> = ({
     try {
       await updateModel(modelId, { isActive: true });
       // Refresh models to show updated state
-      fetchModels();
+      refreshModels();
     } catch (err) {
       console.error("Error activating model:", err);
-      setError("Failed to activate model. Please try again later.");
     }
   };
 
   const handleTestModel = async () => {
+    if (!selectedModel) {
+      return;
+    }
+
     setIsTestLoading(true);
     setTestResponse("");
 
     try {
-      // In a real implementation, this would call the AI model with the test query
-      // For now, we'll simulate a response after a delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const options = {
+        temperature: editedModel?.parameters?.temperature || 0.7,
+        maxTokens: editedModel?.contextSize || 2048,
+        topP: editedModel?.parameters?.topP || 1,
+      };
 
-      setTestResponse(
-        "Based on your last scraping session, I've analyzed the e-commerce product data from 3 websites. The data includes 127 products with an average price of $42.99. Most products (72%) are in stock, with electronics being the most common category. The data quality is high with 98% of entries containing complete information. Would you like me to generate a more detailed report on specific product categories or pricing trends?",
-      );
+      const response = await testModel(selectedModel.id, testQuery, options);
+      setTestResponse(response.text);
     } catch (err) {
       console.error("Error testing model:", err);
       setTestResponse(
@@ -108,6 +228,42 @@ const ModelManagement: React.FC<ModelManagementProps> = ({
       );
     } finally {
       setIsTestLoading(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: any) => {
+    if (isCreatingModel) {
+      if (field.includes(".")) {
+        const [parent, child] = field.split(".");
+        setNewModel({
+          ...newModel,
+          [parent]: {
+            ...newModel[parent as keyof typeof newModel],
+            [child]: value,
+          },
+        });
+      } else {
+        setNewModel({
+          ...newModel,
+          [field]: value,
+        });
+      }
+    } else if (editedModel) {
+      if (field.includes(".")) {
+        const [parent, child] = field.split(".");
+        setEditedModel({
+          ...editedModel,
+          [parent]: {
+            ...editedModel[parent as keyof typeof editedModel],
+            [child]: value,
+          },
+        });
+      } else {
+        setEditedModel({
+          ...editedModel,
+          [field]: value,
+        });
+      }
     }
   };
 
@@ -127,8 +283,8 @@ const ModelManagement: React.FC<ModelManagementProps> = ({
               formatting
             </p>
           </div>
-          <Button>
-            <Edit className="mr-2 h-4 w-4" />
+          <Button onClick={handleCreateModel}>
+            <Plus className="mr-2 h-4 w-4" />
             Create New Model
           </Button>
         </div>
@@ -172,6 +328,8 @@ const ModelManagement: React.FC<ModelManagementProps> = ({
                           <ModelList
                             models={models}
                             onActivate={handleActivateModel}
+                            onSelect={handleSelectModel}
+                            selectedModelId={selectedModel?.id}
                           />
                         </ScrollArea>
                       )}
@@ -180,160 +338,561 @@ const ModelManagement: React.FC<ModelManagementProps> = ({
                 </div>
 
                 <div className="md:col-span-2">
-                  <Card className="h-full">
-                    <CardHeader>
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <CardTitle>Model Configuration</CardTitle>
-                          <CardDescription>
-                            Adjust parameters for GPT-4
-                          </CardDescription>
+                  {isCreatingModel ? (
+                    <Card className="h-full">
+                      <CardHeader>
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <CardTitle>Create New Model</CardTitle>
+                            <CardDescription>
+                              Configure a new AI model
+                            </CardDescription>
+                          </div>
                         </div>
-                        <Badge variant="secondary">Active</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="api-key">API Key</Label>
-                            <Input
-                              id="api-key"
-                              type="password"
-                              value="sk-*****************************"
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="model-name">Model Name</Label>
+                              <Input
+                                id="model-name"
+                                value={newModel.name}
+                                onChange={(e) =>
+                                  handleInputChange("name", e.target.value)
+                                }
+                                placeholder="e.g., GPT-4 Custom"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="provider">Provider</Label>
+                              <Select
+                                value={newModel.provider}
+                                onValueChange={(value) =>
+                                  handleInputChange("provider", value)
+                                }
+                              >
+                                <SelectTrigger id="provider">
+                                  <SelectValue placeholder="Select provider" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="OpenAI">OpenAI</SelectItem>
+                                  <SelectItem value="Anthropic">
+                                    Anthropic
+                                  </SelectItem>
+                                  <SelectItem value="Google">Google</SelectItem>
+                                  <SelectItem value="Mistral AI">
+                                    Mistral AI
+                                  </SelectItem>
+                                  <SelectItem value="Meta">Meta</SelectItem>
+                                  <SelectItem value="xAI">xAI</SelectItem>
+                                  <SelectItem value="DeepSeek">
+                                    DeepSeek
+                                  </SelectItem>
+                                  <SelectItem value="Hugging Face">
+                                    Hugging Face
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="api-key">API Key</Label>
+                              <Input
+                                id="api-key"
+                                type="password"
+                                value={newModel.apiKey}
+                                onChange={(e) =>
+                                  handleInputChange("apiKey", e.target.value)
+                                }
+                                placeholder="Enter API key"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="model-version">
+                                Model Version
+                              </Label>
+                              <Input
+                                id="model-version"
+                                value={newModel.version}
+                                onChange={(e) =>
+                                  handleInputChange("version", e.target.value)
+                                }
+                                placeholder="e.g., gpt-4, claude-3-opus-20240229"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Temperature</Label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">
+                                  0.0
+                                </span>
+                                <Slider
+                                  value={[
+                                    newModel.parameters?.temperature || 0.7,
+                                  ]}
+                                  onValueChange={(value) =>
+                                    handleInputChange(
+                                      "parameters.temperature",
+                                      value[0],
+                                    )
+                                  }
+                                  max={1}
+                                  step={0.1}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  1.0
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label>Context Size</Label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">
+                                  1024
+                                </span>
+                                <Slider
+                                  value={[newModel.contextSize || 4096]}
+                                  onValueChange={(value) =>
+                                    handleInputChange("contextSize", value[0])
+                                  }
+                                  min={1024}
+                                  max={100000}
+                                  step={1024}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  100k
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Memory Retention</Label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">
+                                  1
+                                </span>
+                                <Slider
+                                  value={[newModel.memoryRetention || 5]}
+                                  onValueChange={(value) =>
+                                    handleInputChange(
+                                      "memoryRetention",
+                                      value[0],
+                                    )
+                                  }
+                                  min={1}
+                                  max={10}
+                                  step={1}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  10
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="query-type">
+                                Default For Query Type
+                              </Label>
+                              <Select
+                                value={newModel.defaultForQueryType}
+                                onValueChange={(value) =>
+                                  handleInputChange(
+                                    "defaultForQueryType",
+                                    value,
+                                  )
+                                }
+                              >
+                                <SelectTrigger id="query-type">
+                                  <SelectValue placeholder="Select query type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="general">
+                                    General
+                                  </SelectItem>
+                                  <SelectItem value="chatbot">
+                                    Chatbot
+                                  </SelectItem>
+                                  <SelectItem value="scraping">
+                                    Scraping
+                                  </SelectItem>
+                                  <SelectItem value="analysis">
+                                    Analysis
+                                  </SelectItem>
+                                  <SelectItem value="vector">
+                                    Vector Search
+                                  </SelectItem>
+                                  <SelectItem value="code">
+                                    Code Generation
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Data Prioritization</Label>
+                              <Select
+                                value={newModel.dataPrioritization}
+                                onValueChange={(value) =>
+                                  handleInputChange("dataPrioritization", value)
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select priority" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="scraped">
+                                    Scraped Data First
+                                  </SelectItem>
+                                  <SelectItem value="balanced">
+                                    Balanced
+                                  </SelectItem>
+                                  <SelectItem value="knowledge">
+                                    Knowledge Base First
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="flex items-center space-x-2 pt-4">
+                              <Switch
+                                id="fine-tuning-new"
+                                checked={newModel.fineTuned}
+                                onCheckedChange={(checked) =>
+                                  handleInputChange("fineTuned", checked)
+                                }
+                              />
+                              <Label htmlFor="fine-tuning-new">
+                                Enable Fine-tuning
+                              </Label>
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                id="streaming-new"
+                                checked={newModel.streamingEnabled}
+                                onCheckedChange={(checked) =>
+                                  handleInputChange("streamingEnabled", checked)
+                                }
+                              />
+                              <Label htmlFor="streaming-new">
+                                Enable Streaming Responses
+                              </Label>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                      <CardFooter className="flex justify-between">
+                        <Button variant="outline" onClick={handleCancelCreate}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSaveNewModel}>
+                          <Save className="mr-2 h-4 w-4" />
+                          Create Model
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ) : selectedModel && editedModel ? (
+                    <Card className="h-full">
+                      <CardHeader>
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <CardTitle>Model Configuration</CardTitle>
+                            <CardDescription>
+                              Adjust parameters for {selectedModel.name}
+                            </CardDescription>
+                          </div>
+                          <Badge
+                            variant={
+                              selectedModel.isActive ? "default" : "secondary"
+                            }
+                          >
+                            {selectedModel.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="api-key-edit">API Key</Label>
+                              <Input
+                                id="api-key-edit"
+                                type="password"
+                                value={editedModel.apiKey}
+                                onChange={(e) =>
+                                  handleInputChange("apiKey", e.target.value)
+                                }
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="model-version-edit">
+                                Model Version
+                              </Label>
+                              <Input
+                                id="model-version-edit"
+                                value={editedModel.version}
+                                onChange={(e) =>
+                                  handleInputChange("version", e.target.value)
+                                }
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Temperature</Label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">
+                                  0.0
+                                </span>
+                                <Slider
+                                  value={[
+                                    editedModel.parameters?.temperature || 0.7,
+                                  ]}
+                                  onValueChange={(value) =>
+                                    handleInputChange(
+                                      "parameters.temperature",
+                                      value[0],
+                                    )
+                                  }
+                                  max={1}
+                                  step={0.1}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  1.0
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Context Size</Label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">
+                                  1024
+                                </span>
+                                <Slider
+                                  value={[editedModel.contextSize || 4096]}
+                                  onValueChange={(value) =>
+                                    handleInputChange("contextSize", value[0])
+                                  }
+                                  min={1024}
+                                  max={100000}
+                                  step={1024}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  100k
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Rate Limit (requests per minute)</Label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">
+                                  10
+                                </span>
+                                <Slider
+                                  value={[editedModel.rateLimit || 60]}
+                                  onValueChange={(value) =>
+                                    handleInputChange("rateLimit", value[0])
+                                  }
+                                  min={10}
+                                  max={100}
+                                  step={5}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  100
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label>Memory Retention</Label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">
+                                  1
+                                </span>
+                                <Slider
+                                  value={[editedModel.memoryRetention || 5]}
+                                  onValueChange={(value) =>
+                                    handleInputChange(
+                                      "memoryRetention",
+                                      value[0],
+                                    )
+                                  }
+                                  min={1}
+                                  max={10}
+                                  step={1}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  10
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="query-type-edit">
+                                Default For Query Type
+                              </Label>
+                              <Select
+                                value={editedModel.defaultForQueryType}
+                                onValueChange={(value) =>
+                                  handleInputChange(
+                                    "defaultForQueryType",
+                                    value,
+                                  )
+                                }
+                              >
+                                <SelectTrigger id="query-type-edit">
+                                  <SelectValue placeholder="Select query type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="general">
+                                    General
+                                  </SelectItem>
+                                  <SelectItem value="chatbot">
+                                    Chatbot
+                                  </SelectItem>
+                                  <SelectItem value="scraping">
+                                    Scraping
+                                  </SelectItem>
+                                  <SelectItem value="analysis">
+                                    Analysis
+                                  </SelectItem>
+                                  <SelectItem value="vector">
+                                    Vector Search
+                                  </SelectItem>
+                                  <SelectItem value="code">
+                                    Code Generation
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Data Prioritization</Label>
+                              <Select
+                                value={editedModel.dataPrioritization}
+                                onValueChange={(value) =>
+                                  handleInputChange("dataPrioritization", value)
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select priority" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="scraped">
+                                    Scraped Data First
+                                  </SelectItem>
+                                  <SelectItem value="balanced">
+                                    Balanced
+                                  </SelectItem>
+                                  <SelectItem value="knowledge">
+                                    Knowledge Base First
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="flex items-center space-x-2 pt-4">
+                              <Switch
+                                id="fine-tuning-edit"
+                                checked={editedModel.fineTuned}
+                                onCheckedChange={(checked) =>
+                                  handleInputChange("fineTuned", checked)
+                                }
+                              />
+                              <Label htmlFor="fine-tuning-edit">
+                                Enable Fine-tuning
+                              </Label>
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                id="streaming-edit"
+                                checked={editedModel.streamingEnabled}
+                                onCheckedChange={(checked) =>
+                                  handleInputChange("streamingEnabled", checked)
+                                }
+                              />
+                              <Label htmlFor="streaming-edit">
+                                Enable Streaming Responses
+                              </Label>
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                id="active-edit"
+                                checked={editedModel.isActive}
+                                onCheckedChange={(checked) =>
+                                  handleInputChange("isActive", checked)
+                                }
+                              />
+                              <Label htmlFor="active-edit">
+                                Set as Active Model
+                              </Label>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                      <CardFooter className="flex justify-between">
+                        <Button variant="outline" onClick={handleDeleteModel}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </Button>
+                        <Button onClick={handleUpdateModel}>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save Changes
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ) : (
+                    <div className="h-full flex items-center justify-center border rounded-lg">
+                      <div className="text-center p-6">
+                        <div className="mx-auto w-16 h-16 mb-4 text-muted-foreground">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"
                             />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="model-version">Model Version</Label>
-                            <Select defaultValue="gpt-4">
-                              <SelectTrigger id="model-version">
-                                <SelectValue placeholder="Select version" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="gpt-4">GPT-4</SelectItem>
-                                <SelectItem value="gpt-4-turbo">
-                                  GPT-4 Turbo
-                                </SelectItem>
-                                <SelectItem value="gpt-3.5-turbo">
-                                  GPT-3.5 Turbo
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Temperature</Label>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-muted-foreground">
-                                0.0
-                              </span>
-                              <Slider
-                                defaultValue={[0.7]}
-                                max={1}
-                                step={0.1}
-                                className="flex-1"
-                              />
-                              <span className="text-sm text-muted-foreground">
-                                1.0
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Max Tokens</Label>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-muted-foreground">
-                                256
-                              </span>
-                              <Slider
-                                defaultValue={[2048]}
-                                min={256}
-                                max={4096}
-                                step={256}
-                                className="flex-1"
-                              />
-                              <span className="text-sm text-muted-foreground">
-                                4096
-                              </span>
-                            </div>
-                          </div>
+                          </svg>
                         </div>
-
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label>Context Retention</Label>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-muted-foreground">
-                                1
-                              </span>
-                              <Slider
-                                defaultValue={[5]}
-                                min={1}
-                                max={10}
-                                step={1}
-                                className="flex-1"
-                              />
-                              <span className="text-sm text-muted-foreground">
-                                10
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Data Prioritization</Label>
-                            <Select defaultValue="balanced">
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select priority" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="scraped">
-                                  Scraped Data First
-                                </SelectItem>
-                                <SelectItem value="balanced">
-                                  Balanced
-                                </SelectItem>
-                                <SelectItem value="knowledge">
-                                  Knowledge Base First
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="flex items-center space-x-2 pt-4">
-                            <Switch id="fine-tuning" defaultChecked />
-                            <Label htmlFor="fine-tuning">
-                              Enable Fine-tuning
-                            </Label>
-                          </div>
-
-                          <div className="flex items-center space-x-2">
-                            <Switch id="streaming" defaultChecked />
-                            <Label htmlFor="streaming">
-                              Enable Streaming Responses
-                            </Label>
-                          </div>
-
-                          <div className="flex items-center space-x-2">
-                            <Switch id="default" defaultChecked />
-                            <Label htmlFor="default">
-                              Set as Default Model
-                            </Label>
-                          </div>
-                        </div>
+                        <h3 className="text-lg font-medium mb-2">
+                          No Model Selected
+                        </h3>
+                        <p className="text-muted-foreground mb-4">
+                          Select a model from the list or create a new one to
+                          configure it.
+                        </p>
+                        <Button onClick={handleCreateModel}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Create New Model
+                        </Button>
                       </div>
-                    </CardContent>
-                    <CardFooter className="flex justify-between">
-                      <Button variant="outline">
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </Button>
-                      <Button>
-                        <Save className="mr-2 h-4 w-4" />
-                        Save Changes
-                      </Button>
-                    </CardFooter>
-                  </Card>
+                    </div>
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -575,7 +1134,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                     <Button
                       onClick={handleTestModel}
                       className="w-full"
-                      disabled={isTestLoading}
+                      disabled={isTestLoading || !selectedModel}
                     >
                       {isTestLoading ? (
                         <>
@@ -624,11 +1183,18 @@ Analyze the data provided and respond to the user's query with insights, pattern
 };
 
 interface ModelListProps {
-  models: any[];
+  models: Model[];
   onActivate: (modelId: number) => void;
+  onSelect: (model: Model) => void;
+  selectedModelId?: number;
 }
 
-const ModelList: React.FC<ModelListProps> = ({ models = [], onActivate }) => {
+const ModelList: React.FC<ModelListProps> = ({
+  models = [],
+  onActivate,
+  onSelect,
+  selectedModelId,
+}) => {
   if (!models || models.length === 0) {
     return (
       <div className="text-center py-4 text-muted-foreground">
@@ -642,7 +1208,8 @@ const ModelList: React.FC<ModelListProps> = ({ models = [], onActivate }) => {
       {models.map((model) => (
         <div
           key={model.id}
-          className={`p-3 rounded-md flex items-center justify-between cursor-pointer hover:bg-accent ${model.isActive ? "bg-accent" : ""}`}
+          className={`p-3 rounded-md flex items-center justify-between cursor-pointer hover:bg-accent ${model.isActive ? "bg-accent" : ""} ${model.id === selectedModelId ? "border-2 border-primary" : ""}`}
+          onClick={() => onSelect(model)}
         >
           <div className="flex flex-col">
             <span className="font-medium">{model.name}</span>
@@ -658,7 +1225,10 @@ const ModelList: React.FC<ModelListProps> = ({ models = [], onActivate }) => {
                 variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0"
-                onClick={() => onActivate(model.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onActivate(model.id);
+                }}
               >
                 <Check className="h-4 w-4" />
               </Button>

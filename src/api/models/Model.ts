@@ -9,6 +9,14 @@ interface ModelAttributes {
   version?: string;
   parameters?: any;
   isActive?: boolean;
+  contextSize?: number;
+  memoryRetention?: number;
+  defaultForQueryType?: string;
+  rateLimit?: number;
+  responseVerbosity?: number;
+  dataPrioritization?: string;
+  fineTuned?: boolean;
+  streamingEnabled?: boolean;
 }
 
 class Model extends SequelizeModel<ModelAttributes> implements ModelAttributes {
@@ -19,6 +27,14 @@ class Model extends SequelizeModel<ModelAttributes> implements ModelAttributes {
   public version?: string;
   public parameters?: any;
   public isActive?: boolean;
+  public contextSize?: number;
+  public memoryRetention?: number;
+  public defaultForQueryType?: string;
+  public rateLimit?: number;
+  public responseVerbosity?: number;
+  public dataPrioritization?: string;
+  public fineTuned?: boolean;
+  public streamingEnabled?: boolean;
 }
 
 Model.init(
@@ -52,6 +68,45 @@ Model.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+    },
+    contextSize: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 4096,
+    },
+    memoryRetention: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 5,
+    },
+    defaultForQueryType: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    rateLimit: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 60,
+    },
+    responseVerbosity: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 50,
+    },
+    dataPrioritization: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: "balanced",
+    },
+    fineTuned: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    streamingEnabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: true,
     },
   },
   {
