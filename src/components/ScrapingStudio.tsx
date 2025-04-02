@@ -76,15 +76,17 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
     selectedElements,
     scrapingConfig,
     setScrapingConfig,
-    scrapingResults,
+    scrapedData,
     scrapingProgress,
     isScrapingActive,
     loadUrl,
-    selectElement,
+    addSelectedElement,
     removeSelectedElement,
+    clearSelectedElements,
+    updateSelectedElement,
     startScraping,
     stopScraping,
-    exportResults,
+    exportData,
     saveConfig,
     loadConfig,
   } = useScraper();
@@ -108,7 +110,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
   };
 
   const handleElementConfirm = (element: any) => {
-    selectElement(element);
+    addSelectedElement(element);
   };
 
   const handleSaveConfig = () => {
@@ -129,7 +131,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
   };
 
   const handleExport = (format: "json" | "csv") => {
-    exportResults(format);
+    exportData(format);
     toast({
       title: "Export successful",
       description: `Data has been exported as ${format.toUpperCase()} successfully.`,
@@ -185,7 +187,10 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
             <Button
               variant={isScrapingActive ? "destructive" : "default"}
               onClick={isScrapingActive ? stopScraping : startScraping}
-              disabled={!pageContent || selectedElements.length === 0}
+              disabled={
+                !pageContent ||
+                (selectedElements && selectedElements.length === 0)
+              }
             >
               {isScrapingActive ? (
                 <>
@@ -224,14 +229,14 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
             </div>
 
             <div className="flex-1 overflow-hidden">
-              <TabsContent value="browser" className="h-full">
-                <div className="relative h-full">
+              <TabsContent value="browser" className="h-full p-0">
+                <div className="relative h-full w-full">
                   <BrowserPreview
                     content={pageContent}
                     isLoading={isLoading}
                     showSelector={showElementSelector}
                     onElementSelect={handleElementSelect}
-                    selectedElements={selectedElements}
+                    selectedElements={selectedElements || []}
                   />
                 </div>
               </TabsContent>
@@ -246,7 +251,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {selectedElements.length === 0 ? (
+                      {!selectedElements || selectedElements.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           <MousePointer className="h-8 w-8 mx-auto mb-2 opacity-50" />
                           <p>No elements selected</p>
@@ -311,7 +316,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                           <Input
                             id="pagination-selector"
                             placeholder="CSS selector for next page button"
-                            value={scrapingConfig.paginationSelector || ""}
+                            value={scrapingConfig?.paginationSelector || ""}
                             onChange={(e) =>
                               setScrapingConfig({
                                 ...scrapingConfig,
@@ -329,7 +334,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                             min="1"
                             max="100"
                             placeholder="Max pages to scrape"
-                            value={scrapingConfig.maxPages || ""}
+                            value={scrapingConfig?.maxPages || ""}
                             onChange={(e) =>
                               setScrapingConfig({
                                 ...scrapingConfig,
@@ -350,7 +355,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                             max="10000"
                             step="100"
                             placeholder="Delay in milliseconds"
-                            value={scrapingConfig.delay || ""}
+                            value={scrapingConfig?.delay || ""}
                             onChange={(e) =>
                               setScrapingConfig({
                                 ...scrapingConfig,
@@ -363,7 +368,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                         <div className="flex items-center space-x-2">
                           <Switch
                             id="follow-links"
-                            checked={scrapingConfig.followLinks || false}
+                            checked={scrapingConfig?.followLinks || false}
                             onCheckedChange={(checked) =>
                               setScrapingConfig({
                                 ...scrapingConfig,
@@ -374,13 +379,13 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                           <Label htmlFor="follow-links">Follow Links</Label>
                         </div>
 
-                        {scrapingConfig.followLinks && (
+                        {scrapingConfig?.followLinks && (
                           <div className="space-y-2 pl-6">
                             <Label htmlFor="link-selector">Link Selector</Label>
                             <Input
                               id="link-selector"
                               placeholder="CSS selector for links to follow"
-                              value={scrapingConfig.linkSelector || ""}
+                              value={scrapingConfig?.linkSelector || ""}
                               onChange={(e) =>
                                 setScrapingConfig({
                                   ...scrapingConfig,
@@ -395,7 +400,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                               min="1"
                               max="5"
                               placeholder="Max link depth"
-                              value={scrapingConfig.maxDepth || ""}
+                              value={scrapingConfig?.maxDepth || ""}
                               onChange={(e) =>
                                 setScrapingConfig({
                                   ...scrapingConfig,
@@ -409,7 +414,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                         <div className="flex items-center space-x-2">
                           <Switch
                             id="use-headless"
-                            checked={scrapingConfig.headless || false}
+                            checked={scrapingConfig?.headless || false}
                             onCheckedChange={(checked) =>
                               setScrapingConfig({
                                 ...scrapingConfig,
@@ -452,9 +457,9 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                     <div className="flex items-center">
                       <h3 className="text-lg font-medium">
                         Scraping Results
-                        {scrapingResults.length > 0 && (
+                        {scrapedData && scrapedData.length > 0 && (
                           <Badge variant="outline" className="ml-2">
-                            {scrapingResults.length} items
+                            {scrapedData.length} items
                           </Badge>
                         )}
                       </h3>
@@ -489,10 +494,12 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                               size="icon"
                               onClick={() =>
                                 copyToClipboard(
-                                  JSON.stringify(scrapingResults, null, 2),
+                                  JSON.stringify(scrapedData || [], null, 2),
                                 )
                               }
-                              disabled={scrapingResults.length === 0}
+                              disabled={
+                                !scrapedData || scrapedData.length === 0
+                              }
                             >
                               <Copy className="h-4 w-4" />
                             </Button>
@@ -507,7 +514,9 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                               variant="outline"
                               size="icon"
                               onClick={() => handleExport("json")}
-                              disabled={scrapingResults.length === 0}
+                              disabled={
+                                !scrapedData || scrapedData.length === 0
+                              }
                             >
                               <FileJson className="h-4 w-4" />
                             </Button>
@@ -522,7 +531,9 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                               variant="outline"
                               size="icon"
                               onClick={() => handleExport("csv")}
-                              disabled={scrapingResults.length === 0}
+                              disabled={
+                                !scrapedData || scrapedData.length === 0
+                              }
                             >
                               <FileSpreadsheet className="h-4 w-4" />
                             </Button>
@@ -540,18 +551,18 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                           Scraping in progress...
                         </span>
                         <span className="text-sm text-muted-foreground">
-                          {Math.round(scrapingProgress * 100)}%
+                          {Math.round((scrapingProgress || 0) * 100)}%
                         </span>
                       </div>
                       <Progress
-                        value={scrapingProgress * 100}
+                        value={(scrapingProgress || 0) * 100}
                         className="h-2"
                       />
                     </div>
                   )}
 
                   <div className="flex-1 overflow-hidden border rounded-md">
-                    {scrapingResults.length === 0 ? (
+                    {!scrapedData || scrapedData.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                         <Download className="h-12 w-12 mb-4 opacity-20" />
                         <p className="text-lg">No data available</p>
@@ -564,47 +575,54 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ className = "" }) => {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              {Object.keys(scrapingResults[0]).map((key) => (
-                                <TableHead key={key}>{key}</TableHead>
-                              ))}
+                              {scrapedData &&
+                                scrapedData.length > 0 &&
+                                scrapedData[0] &&
+                                Object.keys(scrapedData[0]).map((key) => (
+                                  <TableHead key={key}>{key}</TableHead>
+                                ))}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {scrapingResults.map((result, index) => (
-                              <TableRow key={index}>
-                                {Object.values(result).map((value, i) => (
-                                  <TableCell key={i}>
-                                    {typeof value === "string" ? (
-                                      value.length > 100 ? (
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <span>
-                                                {value.substring(0, 100)}...
-                                              </span>
-                                            </TooltipTrigger>
-                                            <TooltipContent className="max-w-md">
-                                              {value}
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      ) : (
-                                        value
-                                      )
-                                    ) : (
-                                      JSON.stringify(value)
-                                    )}
-                                  </TableCell>
-                                ))}
-                              </TableRow>
-                            ))}
+                            {scrapedData &&
+                              scrapedData.length > 0 &&
+                              scrapedData.map((result, index) => (
+                                <TableRow key={index}>
+                                  {result &&
+                                    typeof result === "object" &&
+                                    Object.values(result).map((value, i) => (
+                                      <TableCell key={i}>
+                                        {typeof value === "string" ? (
+                                          value.length > 100 ? (
+                                            <TooltipProvider>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <span>
+                                                    {value.substring(0, 100)}...
+                                                  </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-md">
+                                                  {value}
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
+                                          ) : (
+                                            value
+                                          )
+                                        ) : (
+                                          JSON.stringify(value)
+                                        )}
+                                      </TableCell>
+                                    ))}
+                                </TableRow>
+                              ))}
                           </TableBody>
                         </Table>
                       </div>
                     ) : (
                       <ScrollArea className="h-full">
                         <pre className="p-4 text-sm font-mono">
-                          {JSON.stringify(scrapingResults, null, 2)}
+                          {JSON.stringify(scrapedData || [], null, 2)}
                         </pre>
                       </ScrollArea>
                     )}

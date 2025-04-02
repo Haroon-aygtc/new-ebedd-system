@@ -99,7 +99,7 @@ const UrlDiscoveryTool: React.FC<UrlDiscoveryToolProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full bg-background p-4">
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="start-url">Starting URL</Label>

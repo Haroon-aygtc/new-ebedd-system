@@ -64,7 +64,7 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({ onUrlsSubmit }) => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full bg-background p-4">
       <div className="space-y-2">
         <Label>Enter URLs (one per line)</Label>
         <Textarea

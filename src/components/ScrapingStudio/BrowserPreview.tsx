@@ -121,22 +121,23 @@ const BrowserPreview: React.FC<BrowserPreviewProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full bg-gray-100 rounded-md overflow-hidden">
+    <div className="relative w-full h-full bg-background rounded-md overflow-hidden border flex flex-col">
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
           <div className="text-center">
-            <div className="w-12 h-12 border-4 border-t-blue-500 border-gray-200 rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-700">Loading {url}...</p>
+            <div className="w-12 h-12 border-4 border-t-primary border-muted rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading {url}...</p>
           </div>
         </div>
       )}
 
       <iframe
         ref={iframeRef}
-        className="w-full h-full border-0"
+        className="w-full flex-1 border-0"
         title="Web Preview"
-        sandbox="allow-same-origin allow-scripts"
+        sandbox="allow-same-origin allow-scripts allow-forms"
         src={url ? `/api/proxy/url?url=${encodeURIComponent(url)}` : undefined}
+        style={{ display: "block", height: "100%", width: "100%" }}
       />
     </div>
   );

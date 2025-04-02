@@ -18,7 +18,7 @@ import {
   FileSpreadsheet,
   HardDrive,
   Save,
-  Vector,
+  Code,
 } from "lucide-react";
 
 interface ExportDialogProps {
@@ -181,7 +181,7 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
               SQL
             </TabsTrigger>
             <TabsTrigger value="vector" className="flex items-center">
-              <Vector className="mr-2 h-4 w-4" />
+              <Code className="mr-2 h-4 w-4" />
               Vector
             </TabsTrigger>
           </TabsList>

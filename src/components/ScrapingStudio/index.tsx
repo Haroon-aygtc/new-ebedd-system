@@ -1,14 +1,18 @@
 import React, { useState } from "react";
 import MainScrapingStudio from "./MainScrapingStudio";
-import BatchUrlInput from "./BatchUrlInput";
-import UrlDiscoveryTool from "./UrlDiscoveryTool";
 import ExportDialog from "./ExportDialog";
+import BatchUrlDialog from "./BatchUrlDialog";
+import DiscoveryDialog from "./DiscoveryDialog";
 
 interface ScrapingStudioProps {
   onExport?: (data: any) => void;
+  className?: string;
 }
 
-const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ onExport }) => {
+const ScrapingStudio: React.FC<ScrapingStudioProps> = ({
+  onExport,
+  className,
+}) => {
   // Dialog states
   const [showBatchUrlDialog, setShowBatchUrlDialog] = useState<boolean>(false);
   const [showUrlDiscoveryDialog, setShowUrlDiscoveryDialog] =
@@ -23,12 +27,10 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ onExport }) => {
 
   const handleBatchUrlSubmit = (urls: string[]) => {
     setBatchUrls(urls);
-    setShowBatchUrlDialog(false);
   };
 
   const handleUrlDiscoverySubmit = (urls: string[]) => {
     setBatchUrls(urls);
-    setShowUrlDiscoveryDialog(false);
   };
 
   const handleExport = (data: any) => {
@@ -48,7 +50,7 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ onExport }) => {
   };
 
   return (
-    <>
+    <div className={`w-full h-full flex flex-col ${className || ""}`}>
       <MainScrapingStudio
         onExport={handleExport}
         onOpenBatchDialog={() => setShowBatchUrlDialog(true)}
@@ -56,27 +58,26 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({ onExport }) => {
         batchUrls={batchUrls}
       />
 
-      {/* Dialogs */}
-      <BatchUrlInput
-        isOpen={showBatchUrlDialog}
-        onClose={() => setShowBatchUrlDialog(false)}
-        onSubmit={handleBatchUrlSubmit}
-        initialUrls={batchUrls}
+      {/* Use proper dialog components instead of custom modals */}
+      <BatchUrlDialog
+        open={showBatchUrlDialog}
+        onOpenChange={setShowBatchUrlDialog}
+        onUrlsSubmit={handleBatchUrlSubmit}
       />
 
-      <UrlDiscoveryTool
-        isOpen={showUrlDiscoveryDialog}
-        onClose={() => setShowUrlDiscoveryDialog(false)}
-        onSubmit={handleUrlDiscoverySubmit}
+      <DiscoveryDialog
+        open={showUrlDiscoveryDialog}
+        onOpenChange={setShowUrlDiscoveryDialog}
+        onUrlsDiscover={handleUrlDiscoverySubmit}
       />
 
       <ExportDialog
-        isOpen={showExportDialog}
-        onClose={() => setShowExportDialog(false)}
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
         data={exportData}
         onExport={handleExportComplete}
       />
-    </>
+    </div>
   );
 };
 

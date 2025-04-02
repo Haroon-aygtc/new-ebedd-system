@@ -115,6 +115,7 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
 
   // Handle element selection
   const handleElementSelect = (selector: string, element: HTMLElement) => {
+    console.log("Element selected:", selector, element);
     // Generate a unique ID
     const id = `selector-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
@@ -297,8 +298,8 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
   }, [activeTab]);
 
   return (
-    <div className="bg-background w-full h-full flex flex-col">
-      <Card className="flex-1 flex flex-col overflow-hidden">
+    <div className="bg-background w-full h-full flex flex-col overflow-hidden">
+      <Card className="flex-1 flex flex-col overflow-hidden w-full">
         <ScrapingHeader
           isScraping={isScraping}
           onStartScraping={handleStartScraping}
@@ -325,7 +326,7 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
           <ProgressBar progress={progress} isVisible={isScraping} />
         </div>
 
-        <div className="flex-1 px-4 pb-4 min-h-0">
+        <div className="flex-1 px-4 pb-4 min-h-0 overflow-hidden">
           <Tabs
             value={activeTab}
             onValueChange={setActiveTab}
@@ -341,7 +342,7 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex-1 mt-2 min-h-0">
+            <div className="flex-1 mt-2 min-h-0 overflow-hidden">
               <TabsContent value="preview" className="h-full m-0">
                 <BrowserPreview
                   isLoading={isLoading}
