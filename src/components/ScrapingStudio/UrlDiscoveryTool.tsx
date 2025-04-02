@@ -1,319 +1,259 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { AlertCircle, Check, Compass, Loader2, Search } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { discoverUrls } from "@/api/services/scrapeService";
+import { Loader2, Search, Globe, Check, X } from "lucide-react";
 
 interface UrlDiscoveryToolProps {
-  onSubmit: (urls: string[]) => void;
-  onCancel: () => void;
+  onDiscover: (urls: string[]) => void;
+  onCancel?: () => void;
 }
 
 const UrlDiscoveryTool: React.FC<UrlDiscoveryToolProps> = ({
-  onSubmit,
+  onDiscover,
   onCancel,
 }) => {
-  const [startUrl, setStartUrl] = useState<string>("");
-  const [urlPattern, setUrlPattern] = useState<string>("");
-  const [maxDepth, setMaxDepth] = useState<number>(1);
-  const [maxUrls, setMaxUrls] = useState<number>(20);
-  const [sameDomain, setSameDomain] = useState<boolean>(true);
-  const [useJavascript, setUseJavascript] = useState<boolean>(true);
+  const [startUrl, setStartUrl] = useState("");
+  const [maxDepth, setMaxDepth] = useState(1);
+  const [maxUrls, setMaxUrls] = useState(50);
+  const [sameDomain, setSameDomain] = useState(true);
+  const [urlPattern, setUrlPattern] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [discoveredUrls, setDiscoveredUrls] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
-  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
-
-  const handleStartUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setStartUrl(e.target.value);
-    setError("");
-  };
-
-  const handleUrlPatternChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUrlPattern(e.target.value);
-  };
-
-  const handleMaxDepthChange = (value: number[]) => {
-    setMaxDepth(value[0]);
-  };
-
-  const handleMaxUrlsChange = (value: number[]) => {
-    setMaxUrls(value[0]);
-  };
-
-  const handleSameDomainChange = (checked: boolean) => {
-    setSameDomain(checked);
-  };
-
-  const handleJavascriptChange = (checked: boolean) => {
-    setUseJavascript(checked);
-  };
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
   const handleDiscover = async () => {
-    if (!startUrl) {
-      setError("Please enter a starting URL");
-      return;
-    }
+    if (!startUrl) return;
+
+    setIsLoading(true);
+    setDiscoveredUrls([]);
+    setSelectedUrls([]);
 
     try {
-      // Validate URL
-      let processedUrl = startUrl;
-      if (!startUrl.startsWith("http://") && !startUrl.startsWith("https://")) {
-        processedUrl = "https://" + startUrl;
+      // In a real implementation, this would be an API call to your backend
+      // For now, we'll simulate the API call with a timeout and mock data
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Generate some mock URLs based on the start URL
+      const urlObj = new URL(startUrl);
+      const domain = urlObj.hostname;
+      const path = urlObj.pathname;
+
+      // Generate mock discovered URLs
+      const mockUrls = [
+        startUrl,
+        `${urlObj.protocol}//${domain}/products`,
+        `${urlObj.protocol}//${domain}/categories`,
+        `${urlObj.protocol}//${domain}/about`,
+        `${urlObj.protocol}//${domain}/contact`,
+        `${urlObj.protocol}//${domain}/blog`,
+        `${urlObj.protocol}//${domain}/products/item1`,
+        `${urlObj.protocol}//${domain}/products/item2`,
+        `${urlObj.protocol}//${domain}/products/item3`,
+        `${urlObj.protocol}//${domain}/categories/electronics`,
+        `${urlObj.protocol}//${domain}/categories/clothing`,
+        `${urlObj.protocol}//${domain}/blog/post1`,
+        `${urlObj.protocol}//${domain}/blog/post2`,
+      ];
+
+      // Filter by pattern if provided
+      let filteredUrls = mockUrls;
+      if (urlPattern) {
+        const regex = new RegExp(urlPattern);
+        filteredUrls = mockUrls.filter((url) => regex.test(url));
       }
-      new URL(processedUrl);
 
-      setIsLoading(true);
-      setError("");
-      setDiscoveredUrls([]);
-      setSelectedUrls(new Set());
+      // Limit to maxUrls
+      filteredUrls = filteredUrls.slice(0, maxUrls);
 
-      // Call the URL discovery service
-      const urls = await discoverUrls(processedUrl, {
-        maxDepth,
-        urlPattern: urlPattern || undefined,
-        maxUrls,
-        sameDomain,
-        javascript: useJavascript,
-      });
-
-      setDiscoveredUrls(urls);
-
+      setDiscoveredUrls(filteredUrls);
       // Auto-select all discovered URLs
-      const newSelected = new Set(urls);
-      setSelectedUrls(newSelected);
+      setSelectedUrls(filteredUrls);
     } catch (error) {
       console.error("Error discovering URLs:", error);
-      setError(
-        "Failed to discover URLs. Please check the starting URL and try again.",
-      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const toggleUrlSelection = (url: string) => {
-    const newSelected = new Set(selectedUrls);
-    if (newSelected.has(url)) {
-      newSelected.delete(url);
-    } else {
-      newSelected.add(url);
-    }
-    setSelectedUrls(newSelected);
-  };
-
   const handleSelectAll = () => {
-    setSelectedUrls(new Set(discoveredUrls));
+    setSelectedUrls([...discoveredUrls]);
   };
 
-  const handleSelectNone = () => {
-    setSelectedUrls(new Set());
+  const handleDeselectAll = () => {
+    setSelectedUrls([]);
   };
 
-  const handleSubmit = () => {
-    if (selectedUrls.size === 0) {
-      setError("Please select at least one URL");
-      return;
+  const handleToggleUrl = (url: string) => {
+    if (selectedUrls.includes(url)) {
+      setSelectedUrls(selectedUrls.filter((u) => u !== url));
+    } else {
+      setSelectedUrls([...selectedUrls, url]);
     }
-    onSubmit(Array.from(selectedUrls));
+  };
+
+  const handleUseSelected = () => {
+    onDiscover(selectedUrls);
   };
 
   return (
-    <Card className="w-full max-w-3xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Compass className="mr-2 h-5 w-5" />
-          URL Discovery Tool
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-6">
-          <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="start-url"
-                className="block text-sm font-medium mb-1"
-              >
-                Starting URL
-              </label>
-              <Input
-                id="start-url"
-                placeholder="https://example.com"
-                value={startUrl}
-                onChange={handleStartUrlChange}
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="start-url">Starting URL</Label>
+          <div className="flex space-x-2">
+            <Input
+              id="start-url"
+              placeholder="https://example.com"
+              value={startUrl}
+              onChange={(e) => setStartUrl(e.target.value)}
+              disabled={isLoading}
+            />
+            <Button onClick={handleDiscover} disabled={!startUrl || isLoading}>
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="mr-2 h-4 w-4" />
+              )}
+              Discover URLs
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Crawl Depth</Label>
+            <div className="flex items-center space-x-2">
+              <Slider
+                value={[maxDepth]}
+                min={1}
+                max={5}
+                step={1}
+                onValueChange={(value) => setMaxDepth(value[0])}
+                disabled={isLoading}
               />
-            </div>
-
-            <div>
-              <label
-                htmlFor="url-pattern"
-                className="block text-sm font-medium mb-1"
-              >
-                URL Pattern (optional regex)
-              </label>
-              <Input
-                id="url-pattern"
-                placeholder="product|category"
-                value={urlPattern}
-                onChange={handleUrlPatternChange}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Only URLs matching this pattern will be included
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="max-depth">Crawl Depth</Label>
-                  <span className="text-sm text-muted-foreground">
-                    {maxDepth}
-                  </span>
-                </div>
-                <Slider
-                  id="max-depth"
-                  min={1}
-                  max={5}
-                  step={1}
-                  value={[maxDepth]}
-                  onValueChange={handleMaxDepthChange}
-                />
-                <p className="text-xs text-muted-foreground">
-                  How many links deep to crawl (higher values take longer)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="max-urls">Max URLs</Label>
-                  <span className="text-sm text-muted-foreground">
-                    {maxUrls}
-                  </span>
-                </div>
-                <Slider
-                  id="max-urls"
-                  min={5}
-                  max={100}
-                  step={5}
-                  value={[maxUrls]}
-                  onValueChange={handleMaxUrlsChange}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Maximum number of URLs to discover
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <Label htmlFor="same-domain">Stay on Same Domain</Label>
-              <Switch
-                id="same-domain"
-                checked={sameDomain}
-                onCheckedChange={handleSameDomainChange}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <Label htmlFor="use-javascript">Use JavaScript (for SPAs)</Label>
-              <Switch
-                id="use-javascript"
-                checked={useJavascript}
-                onCheckedChange={handleJavascriptChange}
-              />
+              <span className="w-8 text-center">{maxDepth}</span>
             </div>
           </div>
 
-          {error && (
-            <div className="bg-destructive/10 p-3 rounded-md flex items-start">
-              <AlertCircle className="h-5 w-5 text-destructive mr-2 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-destructive">{error}</p>
+          <div className="space-y-2">
+            <Label>Max URLs</Label>
+            <div className="flex items-center space-x-2">
+              <Slider
+                value={[maxUrls]}
+                min={10}
+                max={100}
+                step={10}
+                onValueChange={(value) => setMaxUrls(value[0])}
+                disabled={isLoading}
+              />
+              <span className="w-8 text-center">{maxUrls}</span>
             </div>
-          )}
+          </div>
+        </div>
 
-          {discoveredUrls.length > 0 && (
-            <div className="border rounded-md p-3">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="font-medium">Discovered URLs</h3>
-                <div className="flex items-center space-x-2">
-                  <Badge variant="outline">{discoveredUrls.length} URLs</Badge>
-                  <Badge variant="secondary">
-                    {selectedUrls.size} selected
-                  </Badge>
-                </div>
-              </div>
-              <div className="flex justify-end space-x-2 mb-2">
-                <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                  Select All
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleSelectNone}>
-                  Select None
-                </Button>
-              </div>
-              <ScrollArea className="h-60">
-                <ul className="space-y-1">
-                  {discoveredUrls.map((url, index) => (
-                    <li
-                      key={index}
-                      className={`text-sm font-mono flex items-center p-1 rounded cursor-pointer ${selectedUrls.has(url) ? "bg-accent" : "hover:bg-accent/50"}`}
-                      onClick={() => toggleUrlSelection(url)}
-                    >
-                      {selectedUrls.has(url) ? (
-                        <Check className="h-4 w-4 text-primary mr-2 flex-shrink-0" />
-                      ) : (
-                        <div className="h-4 w-4 border rounded mr-2 flex-shrink-0" />
-                      )}
-                      <span className="truncate">{url}</span>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
+        <div className="space-y-2">
+          <Label htmlFor="url-pattern">URL Pattern (regex)</Label>
+          <Input
+            id="url-pattern"
+            placeholder="e.g., /products/.+"
+            value={urlPattern}
+            onChange={(e) => setUrlPattern(e.target.value)}
+            disabled={isLoading}
+          />
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="same-domain"
+            checked={sameDomain}
+            onCheckedChange={(checked) => setSameDomain(checked as boolean)}
+            disabled={isLoading}
+          />
+          <Label htmlFor="same-domain">Stay on same domain</Label>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+            <h3 className="text-lg font-medium mb-2">Discovering URLs</h3>
+            <p className="text-muted-foreground">
+              Crawling website to find URLs...
+            </p>
+          </div>
+        </div>
+      ) : discoveredUrls.length > 0 ? (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-medium">
+              Discovered URLs ({discoveredUrls.length})
+            </h3>
+            <div className="flex space-x-2">
+              <Button variant="outline" size="sm" onClick={handleSelectAll}>
+                Select All
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDeselectAll}>
+                Deselect All
+              </Button>
             </div>
-          )}
-        </div>
-      </CardContent>
-      <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <div className="space-x-2">
-          <Button
-            variant="secondary"
-            onClick={handleDiscover}
-            disabled={!startUrl || isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Discovering...
-              </>
-            ) : (
-              <>
-                <Search className="mr-2 h-4 w-4" />
-                Discover URLs
-              </>
+          </div>
+
+          <ScrollArea className="h-[300px] border rounded-md p-2">
+            <div className="space-y-2">
+              {discoveredUrls.map((url, index) => {
+                const isSelected = selectedUrls.includes(url);
+                return (
+                  <div
+                    key={index}
+                    className={`flex items-center p-2 rounded-md ${isSelected ? "bg-primary/10" : "bg-muted/50"} cursor-pointer`}
+                    onClick={() => handleToggleUrl(url)}
+                  >
+                    <div className="mr-2">
+                      {isSelected ? (
+                        <Check className="h-4 w-4 text-primary" />
+                      ) : (
+                        <div className="h-4 w-4 rounded-sm border" />
+                      )}
+                    </div>
+                    <Globe className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <span className="text-sm truncate flex-1">{url}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+
+          <div className="flex justify-end space-x-2">
+            {onCancel && (
+              <Button variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
             )}
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={selectedUrls.size === 0 || isLoading}
-          >
-            Use Selected URLs
-          </Button>
+            <Button
+              onClick={handleUseSelected}
+              disabled={selectedUrls.length === 0}
+            >
+              Use Selected ({selectedUrls.length})
+            </Button>
+          </div>
         </div>
-      </CardFooter>
-    </Card>
+      ) : (
+        <div className="border rounded-md p-8 text-center">
+          <Globe className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-2">No URLs Discovered Yet</h3>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            Enter a starting URL and click "Discover URLs" to crawl the website
+            and find pages to scrape.
+          </p>
+        </div>
+      )}
+    </div>
   );
 };
 
