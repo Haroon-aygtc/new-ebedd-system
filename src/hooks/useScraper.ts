@@ -1,12 +1,45 @@
 import { useState, useCallback } from "react";
 import axios from "axios";
-import { saveAs } from "file-saver";
-import { SelectedElement, ScrapingConfig } from "@/types/scraping";
+import { useToast } from "@/components/ui/use-toast";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+
+export interface SelectedElement {
+  id: string;
+  selector: string;
+  type: string;
+  name?: string;
+  attribute?: string;
+  aiGenerated?: boolean;
+}
+
+export interface ScrapingConfig {
+  waitForSelector?: string;
+  maxPages?: number;
+  delay?: number;
+  followLinks?: boolean;
+  linkSelector?: string;
+  maxDepth?: number;
+  javascript?: boolean;
+  proxy?: string;
+  userAgent?: string;
+  extractionMode?: "raw" | "cleaned" | "semantic";
+}
+
+export interface ScrapedItem {
+  url: string;
+  data: Array<{
+    name: string;
+    selector: string;
+    type: string;
+    value: string | string[];
+  }>;
+  timestamp: string;
+  error?: string;
+}
 
 export const useScraper = () => {
+  const { toast } = useToast();
   const [url, setUrl] = useState("");
   const [pageContent, setPageContent] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -15,363 +48,437 @@ export const useScraper = () => {
     [],
   );
   const [scrapingConfig, setScrapingConfig] = useState<ScrapingConfig>({
-    paginationSelector: "",
     maxPages: 1,
     delay: 1000,
     followLinks: false,
-    linkSelector: "",
     maxDepth: 1,
-    headless: true,
+    javascript: true,
+    extractionMode: "cleaned",
   });
-  const [scrapingResults, setScrapingResults] = useState<any[]>([]);
+  const [scrapedData, setScrapedData] = useState<ScrapedItem[]>([]);
   const [scrapingProgress, setScrapingProgress] = useState(0);
   const [isScrapingActive, setIsScrapingActive] = useState(false);
 
-  const getAuthHeaders = () => ({
-    Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
-  });
+  // Load URL and get its content
+  const loadUrl = useCallback(
+    async (urlToLoad: string) => {
+      if (!urlToLoad) return;
 
-  const loadUrl = useCallback(async () => {
-    if (!url) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      setPageContent("");
-
-      // In a production environment, this would call your backend API
-      // For demo purposes, we'll use a proxy or simulate the response
       try {
-        const response = await axios.post(
-          `${API_BASE_URL}/scraper/load`,
-          { url },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...getAuthHeaders(),
-            },
-          },
-        );
+        setIsLoading(true);
+        setError(null);
+        setPageContent("");
 
-        if (response.data.success) {
-          setPageContent(response.data.content);
-        } else {
-          throw new Error(response.data.message || "Failed to load URL");
+        // Add http:// prefix if missing
+        let processedUrl = urlToLoad;
+        if (!/^https?:\/\//i.test(processedUrl)) {
+          processedUrl = `https://${processedUrl}`;
         }
-      } catch (apiError) {
-        console.error("API error:", apiError);
 
-        // Fallback for demo: fetch the URL directly if CORS allows, or use a proxy
-        try {
-          // This is a fallback for demo purposes - in production, always use your backend
-          const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-          const response = await axios.get(corsProxyUrl);
-          setPageContent(response.data);
-        } catch (corsError) {
-          console.error("CORS proxy error:", corsError);
+        // Call the proxy service to load the URL
+        const response = await axios.post(`${API_BASE_URL}/scrape/preview`, {
+          url: processedUrl,
+          options: {
+            javascript: scrapingConfig.javascript,
+            timeout: 30000,
+          },
+        });
 
-          // Final fallback: simulate content for demo purposes
-          if (url.includes("example.com") || url.includes("localhost")) {
-            setPageContent(generateDemoContent(url));
-          } else {
-            throw new Error(
-              "Could not load URL content. In production, this would use your backend API.",
+        if (response.data && response.data.success) {
+          setUrl(processedUrl);
+          setPageContent(response.data.contents);
+          return response.data.contents;
+        } else {
+          throw new Error(response.data?.message || "Failed to load URL");
+        }
+      } catch (error) {
+        console.error("Error loading URL:", error);
+        setError(
+          error instanceof Error ? error.message : "Unknown error occurred",
+        );
+        toast({
+          title: "Error loading URL",
+          description:
+            error instanceof Error ? error.message : "Unknown error occurred",
+          variant: "destructive",
+        });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [scrapingConfig.javascript, toast],
+  );
+
+  // Add a selected element
+  const addSelectedElement = useCallback((element: SelectedElement) => {
+    setSelectedElements((prev) => [...prev, element]);
+  }, []);
+
+  // Remove a selected element
+  const removeSelectedElement = useCallback((id: string) => {
+    setSelectedElements((prev) => prev.filter((el) => el.id !== id));
+  }, []);
+
+  // Clear all selected elements
+  const clearSelectedElements = useCallback(() => {
+    setSelectedElements([]);
+  }, []);
+
+  // Update a selected element
+  const updateSelectedElement = useCallback(
+    (id: string, updates: Partial<SelectedElement>) => {
+      setSelectedElements((prev) =>
+        prev.map((el) => (el.id === id ? { ...el, ...updates } : el)),
+      );
+    },
+    [],
+  );
+
+  // Start scraping process
+  const startScraping = useCallback(
+    async (urlsToScrape: string[] = []) => {
+      if (selectedElements.length === 0) {
+        toast({
+          title: "No elements selected",
+          description: "Please select at least one element to scrape",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsScrapingActive(true);
+      setScrapingProgress(0);
+      setScrapedData([]);
+      setError(null);
+
+      try {
+        const urls = urlsToScrape.length > 0 ? urlsToScrape : [url];
+        const results: ScrapedItem[] = [];
+        let processedCount = 0;
+
+        for (let i = 0; i < urls.length; i++) {
+          if (!isScrapingActive) break; // Check if scraping was stopped
+
+          const currentUrl = urls[i];
+          setScrapingProgress((processedCount / urls.length) * 100);
+
+          try {
+            // Call the API to scrape the page
+            const response = await axios.post(
+              `${API_BASE_URL}/scrape/extract`,
+              {
+                url: currentUrl,
+                selectors: selectedElements.map((el) => ({
+                  selector: el.selector,
+                  type: el.type,
+                  name: el.name || el.selector,
+                  attribute: el.type === "attribute" ? el.attribute : undefined,
+                })),
+                options: {
+                  waitForSelector:
+                    scrapingConfig.waitForSelector ||
+                    selectedElements[0]?.selector,
+                  javascript: scrapingConfig.javascript,
+                  pagination: scrapingConfig.maxPages > 1,
+                  maxPages: scrapingConfig.maxPages,
+                  delay: scrapingConfig.delay / 1000, // Convert to seconds
+                  extractionMode: scrapingConfig.extractionMode,
+                  proxy: scrapingConfig.proxy,
+                  userAgent: scrapingConfig.userAgent,
+                },
+              },
+            );
+
+            if (response.data && response.data.success) {
+              results.push({
+                url: currentUrl,
+                data: response.data.data || [],
+                timestamp: new Date().toISOString(),
+              });
+            } else {
+              throw new Error(
+                response.data?.message || `Failed to scrape ${currentUrl}`,
+              );
+            }
+          } catch (error) {
+            console.error(`Error scraping ${currentUrl}:`, error);
+            results.push({
+              url: currentUrl,
+              data: [],
+              timestamp: new Date().toISOString(),
+              error: error instanceof Error ? error.message : "Unknown error",
+            });
+          }
+
+          processedCount++;
+          setScrapingProgress((processedCount / urls.length) * 100);
+
+          // Add a delay between requests
+          if (i < urls.length - 1) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, scrapingConfig.delay),
             );
           }
         }
-      }
-    } catch (err: any) {
-      console.error("Error loading URL:", err);
-      setError(err.message || "Failed to load URL");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [url]);
 
-  const selectElement = useCallback((element: HTMLElement) => {
-    // In a real implementation, this would open a dialog to configure the element
-    // For now, we'll simulate it by creating a basic selector
-    const tagName = element.tagName.toLowerCase();
-    const text = element.textContent?.trim().substring(0, 20) || "";
-    const name = text || `${tagName} element`;
+        setScrapedData(results);
+        setScrapingProgress(100);
 
-    // Create a simple selector (in production, this would be more sophisticated)
-    let selector = tagName;
-    if (element.id) {
-      selector = `#${element.id}`;
-    } else if (element.className) {
-      const classes = element.className.split(" ").join(".");
-      selector = `${tagName}.${classes}`;
-    }
+        toast({
+          title: "Scraping completed",
+          description: `Successfully scraped ${results.length} URLs`,
+          variant: "default",
+        });
 
-    const newElement: SelectedElement = {
-      name,
-      selector,
-      type: "text",
-    };
-
-    setSelectedElements((prev) => [...prev, newElement]);
-  }, []);
-
-  const removeSelectedElement = useCallback((index: number) => {
-    setSelectedElements((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const startScraping = useCallback(async () => {
-    if (!url || selectedElements.length === 0) return;
-
-    try {
-      setIsScrapingActive(true);
-      setScrapingProgress(0);
-      setError(null);
-
-      // In a production environment, this would call your backend API
-      // For demo purposes, we'll simulate the scraping process
-      try {
-        const response = await axios.post(
-          `${API_BASE_URL}/scraper/start`,
-          {
-            url,
-            elements: selectedElements,
-            config: scrapingConfig,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...getAuthHeaders(),
-            },
-          },
-        );
-
-        if (response.data.success) {
-          // In a real implementation, this might return a job ID to poll for results
-          // For now, we'll simulate progress updates and then set the results
-          simulateScrapingProgress(response.data.results || []);
-        } else {
-          throw new Error(response.data.message || "Failed to start scraping");
-        }
-      } catch (apiError) {
-        console.error("API error:", apiError);
-
-        // Fallback for demo: simulate scraping results
-        simulateScrapingProgress(
-          generateDemoResults(url, selectedElements, scrapingConfig),
-        );
-      }
-    } catch (err: any) {
-      console.error("Error starting scraper:", err);
-      setError(err.message || "Failed to start scraping");
-      setIsScrapingActive(false);
-    }
-  }, [url, selectedElements, scrapingConfig]);
-
-  const simulateScrapingProgress = (finalResults: any[]) => {
-    const totalSteps = 10;
-    let currentStep = 0;
-
-    const interval = setInterval(() => {
-      currentStep++;
-      setScrapingProgress(currentStep / totalSteps);
-
-      if (currentStep === totalSteps) {
-        clearInterval(interval);
-        setScrapingResults(finalResults);
+        return results;
+      } catch (error) {
+        console.error("Error during scraping:", error);
+        setError(error instanceof Error ? error.message : "Unknown error");
+        toast({
+          title: "Scraping failed",
+          description:
+            error instanceof Error ? error.message : "Unknown error occurred",
+          variant: "destructive",
+        });
+        throw error;
+      } finally {
         setIsScrapingActive(false);
-        setScrapingProgress(1);
-      }
-    }, 500);
-  };
-
-  const stopScraping = useCallback(() => {
-    // In a production environment, this would call your backend API to stop the scraping job
-    setIsScrapingActive(false);
-    setError("Scraping stopped by user");
-  }, []);
-
-  const exportResults = useCallback(
-    (format: "json" | "csv") => {
-      if (scrapingResults.length === 0) return;
-
-      if (format === "json") {
-        const blob = new Blob([JSON.stringify(scrapingResults, null, 2)], {
-          type: "application/json",
-        });
-        saveAs(blob, `scraping-results-${new Date().toISOString()}.json`);
-      } else if (format === "csv") {
-        // Convert JSON to CSV
-        const headers = Object.keys(scrapingResults[0]).join(",");
-        const rows = scrapingResults.map((result) => {
-          return Object.values(result)
-            .map((value) => {
-              // Handle values that might contain commas or quotes
-              if (typeof value === "string") {
-                return `"${value.replace(/"/g, '""')}"`;
-              }
-              return value;
-            })
-            .join(",");
-        });
-
-        const csv = [headers, ...rows].join("\n");
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        saveAs(blob, `scraping-results-${new Date().toISOString()}.csv`);
       }
     },
-    [scrapingResults],
+    [url, selectedElements, scrapingConfig, toast],
   );
 
+  // Stop scraping process
+  const stopScraping = useCallback(() => {
+    setIsScrapingActive(false);
+    toast({
+      title: "Scraping stopped",
+      description: "The scraping process has been stopped",
+      variant: "default",
+    });
+  }, [toast]);
+
+  // Export scraped data
+  const exportData = useCallback(
+    (format: "json" | "csv" = "json") => {
+      if (scrapedData.length === 0) {
+        toast({
+          title: "No data to export",
+          description: "Please scrape some data first",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        if (format === "json") {
+          const json = JSON.stringify(scrapedData, null, 2);
+          const blob = new Blob([json], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `scraping-results-${new Date().toISOString()}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } else if (format === "csv") {
+          // Convert to CSV
+          let csv = "URL,Field Name,Field Type,Value\n";
+
+          scrapedData.forEach((item) => {
+            if (item.error) {
+              csv += `${item.url},"Error: ${item.error.replace(/"/g, '""')}","error",""\n`;
+            } else {
+              item.data.forEach((field) => {
+                const value = Array.isArray(field.value)
+                  ? field.value.join(" | ").replace(/"/g, '""')
+                  : String(field.value).replace(/"/g, '""');
+
+                csv += `${item.url},"${field.name}","${field.type}","${value}"\n`;
+              });
+            }
+          });
+
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `scraping-results-${new Date().toISOString()}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+
+        toast({
+          title: "Export successful",
+          description: `Data has been exported as ${format.toUpperCase()}`,
+          variant: "default",
+        });
+      } catch (error) {
+        console.error("Error exporting data:", error);
+        toast({
+          title: "Export failed",
+          description:
+            error instanceof Error ? error.message : "Unknown error occurred",
+          variant: "destructive",
+        });
+      }
+    },
+    [scrapedData, toast],
+  );
+
+  // Discover URLs from a starting point
+  const discoverUrls = useCallback(
+    async (startUrl: string, options: any = {}) => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Add http:// prefix if missing
+        let processedUrl = startUrl;
+        if (!/^https?:\/\//i.test(processedUrl)) {
+          processedUrl = `https://${processedUrl}`;
+        }
+
+        const response = await axios.post(`${API_BASE_URL}/scrape/discover`, {
+          url: processedUrl,
+          options: {
+            maxDepth: options.maxDepth || 1,
+            maxUrls: options.maxUrls || 20,
+            sameDomain: options.sameDomain !== false,
+            urlPattern: options.urlPattern || undefined,
+            javascript: options.javascript || false,
+          },
+        });
+
+        if (response.data && response.data.success) {
+          return response.data.data || [];
+        } else {
+          throw new Error(response.data?.message || "Failed to discover URLs");
+        }
+      } catch (error) {
+        console.error("Error discovering URLs:", error);
+        setError(error instanceof Error ? error.message : "Unknown error");
+        toast({
+          title: "URL discovery failed",
+          description:
+            error instanceof Error ? error.message : "Unknown error occurred",
+          variant: "destructive",
+        });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [toast],
+  );
+
+  // Save configuration
   const saveConfig = useCallback(
     (name: string) => {
-      const config = {
-        name,
-        url,
-        elements: selectedElements,
-        config: scrapingConfig,
-      };
+      try {
+        const config = {
+          name,
+          url,
+          elements: selectedElements,
+          config: scrapingConfig,
+          timestamp: new Date().toISOString(),
+        };
 
-      // In a production environment, this would save to your backend
-      // For demo purposes, we'll save to localStorage
-      const savedConfigs = JSON.parse(
-        localStorage.getItem("scraping-configs") || "[]",
-      );
-      const updatedConfigs = [
-        ...savedConfigs.filter((c: any) => c.name !== name),
-        config,
-      ];
-      localStorage.setItem("scraping-configs", JSON.stringify(updatedConfigs));
+        // Save to localStorage
+        const savedConfigs = JSON.parse(
+          localStorage.getItem("scraping-configs") || "[]",
+        );
+        const updatedConfigs = [
+          ...savedConfigs.filter((c: any) => c.name !== name),
+          config,
+        ];
+        localStorage.setItem(
+          "scraping-configs",
+          JSON.stringify(updatedConfigs),
+        );
+
+        toast({
+          title: "Configuration saved",
+          description: `Scraping configuration "${name}" has been saved`,
+          variant: "default",
+        });
+
+        return true;
+      } catch (error) {
+        console.error("Error saving configuration:", error);
+        toast({
+          title: "Save failed",
+          description:
+            error instanceof Error ? error.message : "Unknown error occurred",
+          variant: "destructive",
+        });
+        return false;
+      }
     },
-    [url, selectedElements, scrapingConfig],
+    [url, selectedElements, scrapingConfig, toast],
   );
 
-  const loadConfig = useCallback(() => {
-    // In a production environment, this would load from your backend
-    // For demo purposes, we'll load from localStorage
-    const savedConfigs = JSON.parse(
-      localStorage.getItem("scraping-configs") || "[]",
-    );
+  // Load configuration
+  const loadConfig = useCallback(
+    (name?: string) => {
+      try {
+        const savedConfigs = JSON.parse(
+          localStorage.getItem("scraping-configs") || "[]",
+        );
 
-    if (savedConfigs.length > 0) {
-      // In a real app, you would show a UI to select which config to load
-      // For demo purposes, we'll just load the most recent one
-      const config = savedConfigs[savedConfigs.length - 1];
+        let config;
+        if (name) {
+          config = savedConfigs.find((c: any) => c.name === name);
+        } else if (savedConfigs.length > 0) {
+          // Load the most recent config if no name provided
+          config = savedConfigs[savedConfigs.length - 1];
+        }
 
-      setUrl(config.url);
-      setSelectedElements(config.elements);
-      setScrapingConfig(config.config);
+        if (config) {
+          setUrl(config.url || "");
+          setSelectedElements(config.elements || []);
+          setScrapingConfig(config.config || {});
+
+          toast({
+            title: "Configuration loaded",
+            description: `Loaded scraping configuration "${config.name}"`,
+            variant: "default",
+          });
+
+          return true;
+        } else {
+          throw new Error("No configuration found");
+        }
+      } catch (error) {
+        console.error("Error loading configuration:", error);
+        toast({
+          title: "Load failed",
+          description:
+            error instanceof Error ? error.message : "Unknown error occurred",
+          variant: "destructive",
+        });
+        return false;
+      }
+    },
+    [toast],
+  );
+
+  // Get saved configurations
+  const getSavedConfigs = useCallback(() => {
+    try {
+      return JSON.parse(localStorage.getItem("scraping-configs") || "[]");
+    } catch (error) {
+      console.error("Error getting saved configurations:", error);
+      return [];
     }
   }, []);
 
-  // Helper function to generate demo content for testing
-  const generateDemoContent = (url: string) => {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Demo Page for ${url}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-          .product { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
-          .product-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
-          .product-price { color: #e63946; font-weight: bold; }
-          .product-description { color: #555; margin: 10px 0; }
-          .product-rating { color: #ff9800; }
-          img { max-width: 100px; height: auto; }
-          .pagination { margin-top: 20px; }
-          .pagination a { margin-right: 10px; text-decoration: none; padding: 5px 10px; border: 1px solid #ddd; }
-        </style>
-      </head>
-      <body>
-        <h1>Product Listing</h1>
-        <div class="products">
-          <div class="product">
-            <div class="product-title">Smartphone X Pro</div>
-            <img src="https://via.placeholder.com/100" alt="Smartphone X Pro" />
-            <div class="product-price">$999.99</div>
-            <div class="product-description">Latest smartphone with advanced camera and long battery life.</div>
-            <div class="product-rating">★★★★☆ (4.2/5)</div>
-          </div>
-          <div class="product">
-            <div class="product-title">Laptop Ultra Slim</div>
-            <img src="https://via.placeholder.com/100" alt="Laptop Ultra Slim" />
-            <div class="product-price">$1299.99</div>
-            <div class="product-description">Lightweight laptop with powerful performance and stunning display.</div>
-            <div class="product-rating">★★★★★ (4.8/5)</div>
-          </div>
-          <div class="product">
-            <div class="product-title">Wireless Earbuds</div>
-            <img src="https://via.placeholder.com/100" alt="Wireless Earbuds" />
-            <div class="product-price">$149.99</div>
-            <div class="product-description">True wireless earbuds with noise cancellation and crystal clear sound.</div>
-            <div class="product-rating">★★★★☆ (4.0/5)</div>
-          </div>
-        </div>
-        <div class="pagination">
-          <a href="#" class="active">1</a>
-          <a href="#">2</a>
-          <a href="#">3</a>
-          <a href="#" class="next">Next →</a>
-        </div>
-      </body>
-      </html>
-    `;
-  };
-
-  // Helper function to generate demo results for testing
-  const generateDemoResults = (
-    url: string,
-    elements: SelectedElement[],
-    config: ScrapingConfig,
-  ) => {
-    // Create sample results based on the selected elements
-    const results = [];
-
-    // Simulate multiple pages of results
-    const pageCount = Math.min(config.maxPages || 1, 3);
-
-    for (let page = 1; page <= pageCount; page++) {
-      // Simulate 3 products per page
-      for (let i = 1; i <= 3; i++) {
-        const productIndex = (page - 1) * 3 + i;
-        const result: Record<string, any> = {
-          page,
-          url: `${url}?page=${page}`,
-        };
-
-        // Add data for each selected element
-        elements.forEach((element) => {
-          const fieldName = element.name;
-
-          if (element.selector.includes("title")) {
-            result[fieldName] = `Product ${productIndex} - Page ${page}`;
-          } else if (element.selector.includes("price")) {
-            result[fieldName] = `$${(99.99 * productIndex).toFixed(2)}`;
-          } else if (element.selector.includes("description")) {
-            result[fieldName] =
-              `This is a sample description for product ${productIndex} on page ${page}.`;
-          } else if (element.selector.includes("rating")) {
-            const rating = (3 + Math.random() * 2).toFixed(1);
-            result[fieldName] = `★★★★☆ (${rating}/5)`;
-          } else if (
-            element.selector.includes("img") &&
-            element.type === "attribute" &&
-            element.attribute === "src"
-          ) {
-            result[fieldName] =
-              `https://via.placeholder.com/100?text=Product${productIndex}`;
-          } else {
-            result[fieldName] =
-              `Sample data for ${fieldName} - Product ${productIndex}`;
-          }
-        });
-
-        results.push(result);
-      }
-    }
-
-    return results;
-  };
-
   return {
+    // State
     url,
     setUrl,
     pageContent,
@@ -380,16 +487,22 @@ export const useScraper = () => {
     selectedElements,
     scrapingConfig,
     setScrapingConfig,
-    scrapingResults,
+    scrapedData,
     scrapingProgress,
     isScrapingActive,
+
+    // Functions
     loadUrl,
-    selectElement,
+    addSelectedElement,
     removeSelectedElement,
+    clearSelectedElements,
+    updateSelectedElement,
     startScraping,
     stopScraping,
-    exportResults,
+    exportData,
+    discoverUrls,
     saveConfig,
     loadConfig,
+    getSavedConfigs,
   };
 };
