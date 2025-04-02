@@ -65,6 +65,9 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
   const [selectedElements, setSelectedElements] = useState<Selector[]>([]);
   const [scrapedData, setScrapedData] = useState<ScrapedItem[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [serverStatus, setServerStatus] = useState<
+    "online" | "offline" | "checking"
+  >("checking");
 
   // Add state for dialogs
   const [showBatchUrlDialog, setShowBatchUrlDialog] = useState<boolean>(false);
@@ -101,6 +104,25 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
     scrapingProgress: hookProgress,
     isScrapingActive: hookIsScrapingActive,
   } = useScraper();
+
+  // Check proxy server status on component mount
+  useEffect(() => {
+    const checkServerStatus = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/proxy/status`);
+        if (response.ok) {
+          setServerStatus("online");
+        } else {
+          setServerStatus("offline");
+        }
+      } catch (error) {
+        console.error("Error checking proxy server status:", error);
+        setServerStatus("offline");
+      }
+    };
+
+    checkServerStatus();
+  }, []);
 
   // Load URL function
   const loadUrl = async (urlToLoad: string) => {
@@ -339,10 +361,28 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
     }
   };
 
-  // Toggle select mode when the tab changes
+  // State for select mode
+  const [selectModeEnabled, setSelectModeEnabled] = useState(false);
+
+  // Toggle select mode
+  const toggleSelectMode = () => {
+    setSelectModeEnabled(!selectModeEnabled);
+
+    // Show a toast to guide the user when they enable select mode
+    if (!selectModeEnabled) {
+      toast({
+        title: "Selection Mode Enabled",
+        description:
+          "Click on elements in the preview to select them for scraping",
+        variant: "default",
+      });
+    }
+  };
+
+  // Set select mode based on tab and toggle state
   useEffect(() => {
-    setIsSelectMode(activeTab === "preview");
-  }, [activeTab]);
+    setIsSelectMode(activeTab === "preview" && selectModeEnabled);
+  }, [activeTab, selectModeEnabled]);
 
   // Filter selectors based on search term
   const filteredSelectors = React.useMemo(() => {
@@ -364,7 +404,25 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
           onStopScraping={handleStopScraping}
           onExport={handleExport}
           isStartDisabled={isLoading || selectedElements.length === 0}
+          isSelectMode={selectModeEnabled}
+          onToggleSelectMode={toggleSelectMode}
         />
+
+        {serverStatus === "offline" && (
+          <div className="px-4 py-2 bg-destructive/10 text-destructive text-sm">
+            The proxy server appears to be offline. Element selection and
+            scraping may not work properly.
+          </div>
+        )}
+
+        {/* Add a helper message when select mode is enabled */}
+        {selectModeEnabled && activeTab === "preview" && (
+          <div className="px-4 py-2 bg-primary/10 text-primary text-sm flex items-center">
+            <MousePointer className="h-4 w-4 mr-2" />
+            Selection Mode is ON. Click on elements in the preview to select
+            them for scraping.
+          </div>
+        )}
 
         <div className="px-4 pb-4 space-y-4">
           <div className="flex flex-col sm:flex-row gap-4">

@@ -27,10 +27,12 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({
 
   const handleBatchUrlSubmit = (urls: string[]) => {
     setBatchUrls(urls);
+    setShowBatchUrlDialog(false);
   };
 
   const handleUrlDiscoverySubmit = (urls: string[]) => {
     setBatchUrls(urls);
+    setShowUrlDiscoveryDialog(false);
   };
 
   const handleExport = (data: any) => {
@@ -58,24 +60,27 @@ const ScrapingStudio: React.FC<ScrapingStudioProps> = ({
         batchUrls={batchUrls}
       />
 
-      {/* Use proper dialog components instead of custom modals */}
+      {/* Dialogs */}
       <BatchUrlDialog
-        open={showBatchUrlDialog}
-        onOpenChange={setShowBatchUrlDialog}
-        onUrlsSubmit={handleBatchUrlSubmit}
+        isOpen={showBatchUrlDialog}
+        onClose={() => setShowBatchUrlDialog(false)}
+        onSubmit={handleBatchUrlSubmit}
+        initialUrls={batchUrls}
       />
 
       <DiscoveryDialog
-        open={showUrlDiscoveryDialog}
-        onOpenChange={setShowUrlDiscoveryDialog}
-        onUrlsDiscover={handleUrlDiscoverySubmit}
+        isOpen={showUrlDiscoveryDialog}
+        onClose={() => setShowUrlDiscoveryDialog(false)}
+        onSubmit={handleUrlDiscoverySubmit}
+        currentUrl=""
       />
 
       <ExportDialog
-        open={showExportDialog}
-        onOpenChange={setShowExportDialog}
-        data={exportData}
-        onExport={handleExportComplete}
+        isOpen={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onExport={(format, filename) => {
+          handleExportComplete(exportData, format);
+        }}
       />
     </div>
   );
