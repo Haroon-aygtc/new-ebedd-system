@@ -12,7 +12,12 @@ export default defineConfig({
   optimizeDeps: {
     entries: ["src/main.tsx", "src/tempobook/**/*"],
   },
-  plugins: [react(), tempo()],
+  plugins: [
+    react({
+      plugins: [["@swc/plugin-emotion", {}]],
+    }),
+    tempo(),
+  ],
   resolve: {
     preserveSymlinks: true,
     alias: {
