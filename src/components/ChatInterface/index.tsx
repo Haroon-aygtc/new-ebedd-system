@@ -13,11 +13,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Bot,
   Save,
   Send,
   Settings,
-  User,
   RefreshCw,
   MessageSquare,
   Sparkles,
@@ -38,7 +36,7 @@ interface ChatInterfaceProps {
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   datasets = [],
-  onSaveConversation = () => {},
+  onSaveConversation,
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -137,8 +135,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   const handleSaveConversation = () => {
-    if (messages.length > 0) {
-      onSaveConversation(messages);
+    if (messages.length > 0 && onSaveConversation) {
+      onSaveConversation?.(messages);
     }
   };
 
@@ -185,7 +183,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             variant="outline"
             size="sm"
             onClick={handleSaveConversation}
-            disabled={messages.length === 0}
+            disabled={messages.length === 0 || !onSaveConversation}
           >
             <Save className="mr-2 h-4 w-4" />
             Save Chat
@@ -214,4 +212,122 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex ${message.sender === 'user' ?
+                    className={`flex ${
+                      message.sender === 'user' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    <div
+                      className={`flex items-start space-x-2 max-w-[80%] ${
+                        message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+                      }`}
+                    >
+                      <Avatar className={message.sender === 'user' ? 'bg-primary' : 'bg-secondary'}>
+                        {message.sender === 'user' ? (
+                          <>
+                            <AvatarFallback>U</AvatarFallback>
+                            <AvatarImage src="/user-avatar.png" />
+                          </>
+                        ) : (
+                          <>
+                            <AvatarFallback>AI</AvatarFallback>
+                            <AvatarImage src="/ai-avatar.png" />
+                          </>
+                        )}
+                      </Avatar>
+                      <div>
+                        <div
+                          className={`p-3 rounded-lg ${
+                            message.sender === 'user'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted'
+                          }`}
+                        >
+                          <div className="whitespace-pre-wrap">{message.content}</div>
+                        </div>
+                        {message.followUpQuestions && message.followUpQuestions.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-xs text-muted-foreground ml-1">Suggested follow-ups:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {message.followUpQuestions.map((question, index) => (
+                                <Badge
+                                  key={index}
+                                  variant="outline"
+                                  className="cursor-pointer hover:bg-accent"
+                                  onClick={() => handleFollowUpQuestion(question)}
+                                >
+                                  {question}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground mt-1 ml-1">
+                          {new Date(message.timestamp).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              {isTyping && (
+                <div className="flex justify-start">
+                  <div className="flex items-start space-x-2 max-w-[80%]">
+                    <Avatar className="bg-secondary">
+                      <AvatarFallback>AI</AvatarFallback>
+                      <AvatarImage src="/ai-avatar.png" />
+                    </Avatar>
+                    <div className="p-3 rounded-lg bg-muted">
+                      <div className="flex items-center space-x-2">
+                        <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                        <div className="h-2 w-2 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                        <div className="h-2 w-2 bg-current rounded-full animate-bounce"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
+        </CardContent>
+        <div className="p-4 border-t">
+          <div className="flex space-x-2">
+            <Input
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Type your message..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              disabled={isTyping}
+            />
+            <Button onClick={handleSendMessage} disabled={!inputValue.trim() || isTyping}>
+              {isTyping ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <div className="flex items-center mt-2 text-xs text-muted-foreground">
+            <Sparkles className="h-3 w-3 mr-1" />
+            <span>
+              {selectedModel === 'gpt-4'
+                ? 'GPT-4 can analyze data, generate insights, and provide recommendations'
+                : selectedModel === 'gpt-3.5'
+                ? 'GPT-3.5 can answer questions and provide basic analysis'
+                : selectedModel === 'claude'
+                ? 'Claude excels at detailed explanations and nuanced understanding'
+                : 'Llama 2 is optimized for efficiency and performance'}
+            </span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+export default ChatInterface;

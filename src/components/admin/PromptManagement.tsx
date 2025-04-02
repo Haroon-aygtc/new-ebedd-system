@@ -46,7 +46,7 @@ interface Prompt {
 }
 
 const PromptManagement = () => {
-  const { data: promptsData, loading, error, fetchData } = useApi<Prompt[]>();
+  const { data: promptsData, loading, error, fetchData } = useApi();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -64,9 +64,9 @@ const PromptManagement = () => {
 
   useEffect(() => {
     if (promptsData) {
-      setPrompts(promptsData);
+      setPrompts(promptsData as Prompt[]);
       if (promptsData.length > 0 && !selectedPrompt) {
-        setSelectedPrompt(promptsData[0]);
+        setSelectedPrompt(promptsData[0] as Prompt);
       }
     }
   }, [promptsData, selectedPrompt]);
@@ -116,7 +116,7 @@ const PromptManagement = () => {
           setPrompts((prev) =>
             prev.map((p) => (p.id === selectedPrompt.id ? updatedPrompt : p)),
           );
-          setSelectedPrompt(updatedPrompt);
+          setSelectedPrompt(updatedPrompt as Prompt);
         }
       } else if (isCreating) {
         // Create new prompt
@@ -126,7 +126,7 @@ const PromptManagement = () => {
         });
         if (newPrompt) {
           setPrompts((prev) => [...prev, newPrompt]);
-          setSelectedPrompt(newPrompt);
+          setSelectedPrompt(newPrompt as Prompt);
         }
       }
       setIsEditing(false);

@@ -40,7 +40,9 @@ export function usePrompts() {
       });
 
       if (result) {
-        setPrompts((prev) => [...prev, result]);
+        // Ensure result is a single Prompt object
+        const newPrompt = Array.isArray(result) ? result[0] : result as Prompt;
+        setPrompts((prev) => [...prev, newPrompt]);
       }
 
       return result;
@@ -58,8 +60,10 @@ export function usePrompts() {
       });
 
       if (result) {
+        // Ensure result is a single Prompt object
+        const updatedPrompt = Array.isArray(result) ? result[0] : result as Prompt;
         setPrompts((prev) =>
-          prev.map((prompt) => (prompt.id === id ? result : prompt)),
+          prev.map((prompt) => (prompt.id === id ? updatedPrompt : prompt)),
         );
       }
 

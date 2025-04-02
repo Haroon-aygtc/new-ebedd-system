@@ -6,6 +6,7 @@ import { promptsRouter } from "./routes/prompts";
 import { chatRouter } from "./routes/chat";
 import { usersRouter } from "./routes/users";
 import { settingsRouter } from "./routes/settings";
+import { proxyRouter } from "./routes/proxy";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -21,6 +22,7 @@ app.use("/api/prompts", promptsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/settings", settingsRouter);
+app.use("/api/proxy", proxyRouter);
 
 // Error handling middleware
 app.use(

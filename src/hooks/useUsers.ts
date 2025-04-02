@@ -20,7 +20,7 @@ export function useUsers() {
 
   useEffect(() => {
     if (data) {
-      setUsers(data);
+      setUsers(data as User[]);
     }
   }, [data]);
 
@@ -41,7 +41,11 @@ export function useUsers() {
       });
 
       if (result) {
-        setUsers((prev) => [...prev, result]);
+        if (Array.isArray(result)) {
+          console.error("Unexpected array response when creating a user.");
+          return;
+        }
+        setUsers((prev) => [...prev, result as User]);
       }
 
       return result;
@@ -60,7 +64,7 @@ export function useUsers() {
 
       if (result) {
         setUsers((prev) =>
-          prev.map((user) => (user.id === id ? result : user)),
+          prev.map((user) => (user.id === id && !Array.isArray(result) ? result as User : user)),
         );
       }
 

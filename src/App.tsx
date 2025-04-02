@@ -1,8 +1,11 @@
-import { Suspense } from "react";
+import { Suspense, lazy } from "react";
 import { useRoutes, Routes, Route } from "react-router-dom";
 import InterfaceController from "./components/InterfaceController";
 import { Toaster } from "./components/ui/toaster";
 import routes from "tempo-routes";
+
+// Lazy load the BrowserDemo component
+const BrowserDemo = lazy(() => import("./components/BrowserDemo"));
 
 function App() {
   return (
@@ -13,6 +16,7 @@ function App() {
 
         <Routes>
           <Route path="/" element={<InterfaceController />} />
+          <Route path="/browser-demo" element={<BrowserDemo />} />
           {/* Add more routes as needed */}
           {import.meta.env.VITE_TEMPO === "true" && (
             <Route path="/tempobook/*" />

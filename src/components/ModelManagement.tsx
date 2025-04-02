@@ -109,7 +109,7 @@ const ModelManagement: React.FC<ModelManagementProps> = ({
       topP: 1,
     },
   });
-  
+
   // Prompt state
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
@@ -146,7 +146,7 @@ const ModelManagement: React.FC<ModelManagementProps> = ({
     try {
       setPromptsLoading(true);
       setPromptsError(null);
-      
+
       const response = await fetch(
         `${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/prompts`,
       );
@@ -158,7 +158,7 @@ const ModelManagement: React.FC<ModelManagementProps> = ({
       const data = await response.json();
       if (data.success && data.data) {
         setPrompts(data.data);
-        
+
         // Select the default prompt if available
         const defaultPrompt = data.data.find((p: Prompt) => p.isDefault);
         if (defaultPrompt) {
@@ -238,7 +238,7 @@ User Query: {{query}}
 Analyze the competitor data and identify strengths, weaknesses, unique selling propositions, and market positioning. Compare pricing strategies, product offerings, and messaging approaches. Provide strategic recommendations based on this analysis.`
         },
       ]);
-      
+
       // Select the first prompt as default
       setSelectedPrompt({
         id: 1,
@@ -381,7 +381,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
     try {
       // Get the selected prompt if any
       const promptId = selectedPrompt?.id;
-      
+
       // Prepare formatting options based on the current settings
       const formatOptions = {
         introMessage: formatSettings.introMessage,
@@ -409,11 +409,11 @@ Analyze the data provided and respond to the user's query with insights, pattern
           formatOptions
         })
       });
-      
+
       if (!response.ok) {
         throw new Error(`Test failed: ${response.statusText}`);
       }
-      
+
       const result = await response.json();
       if (result.success && result.data?.message) {
         setTestResponse(result.data.message.content);
@@ -465,14 +465,14 @@ Analyze the data provided and respond to the user's query with insights, pattern
       }
     }
   };
-  
+
   // Prompt management functions
   const handleSelectPrompt = (prompt: Prompt) => {
     setSelectedPrompt(prompt);
-    setEditedPrompt({...prompt});
+    setEditedPrompt({ ...prompt });
     setIsCreatingPrompt(false);
   };
-  
+
   const handleCreatePrompt = () => {
     setIsCreatingPrompt(true);
     setSelectedPrompt(null);
@@ -484,16 +484,16 @@ Analyze the data provided and respond to the user's query with insights, pattern
       isDefault: false
     });
   };
-  
+
   const handleCancelCreatePrompt = () => {
     setIsCreatingPrompt(false);
     if (prompts.length > 0) {
       const defaultPrompt = prompts.find(p => p.isDefault) || prompts[0];
       setSelectedPrompt(defaultPrompt);
-      setEditedPrompt({...defaultPrompt});
+      setEditedPrompt({ ...defaultPrompt });
     }
   };
-  
+
   const handleSaveNewPrompt = async () => {
     try {
       const response = await fetch(`${process.env.VITE_API_BASE_URL || "http://localhost:3001/api"}/prompts`, {
@@ -504,11 +504,11 @@ Analyze the data provided and respond to the user's query with insights, pattern
         },
         body: JSON.stringify(newPrompt)
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to create prompt: ${response.statusText}`);
       }
-      
+
       const result = await response.json();
       if (result.success && result.data) {
         setIsCreatingPrompt(false);
@@ -524,7 +524,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
       console.error("Error creating prompt:", err);
     }
   };
-  
+
   const handleUpdatePrompt = async () => {
     if (!selectedPrompt || !editedPrompt) return;
 
@@ -537,22 +537,22 @@ Analyze the data provided and respond to the user's query with insights, pattern
         },
         body: JSON.stringify(editedPrompt)
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to update prompt: ${response.statusText}`);
       }
-      
+
       const result = await response.json();
       if (result.success && result.data) {
         setSelectedPrompt(result.data);
-        setEditedPrompt({...result.data});
+        setEditedPrompt({ ...result.data });
         await fetchPrompts(); // Refresh prompts list
       }
     } catch (err) {
       console.error("Error updating prompt:", err);
     }
   };
-  
+
   const handleDeletePrompt = async () => {
     if (!selectedPrompt) return;
 
@@ -564,30 +564,30 @@ Analyze the data provided and respond to the user's query with insights, pattern
           'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to delete prompt: ${response.statusText}`);
       }
-      
+
       const result = await response.json();
       if (result.success) {
         setSelectedPrompt(null);
         setEditedPrompt(null);
         await fetchPrompts(); // Refresh prompts list
-        
+
         // Select another prompt if available
         if (prompts.length > 1) {
           const remainingPrompts = prompts.filter(p => p.id !== selectedPrompt.id);
           const defaultPrompt = remainingPrompts.find(p => p.isDefault) || remainingPrompts[0];
           setSelectedPrompt(defaultPrompt);
-          setEditedPrompt({...defaultPrompt});
+          setEditedPrompt({ ...defaultPrompt });
         }
       }
     } catch (err) {
       console.error("Error deleting prompt:", err);
     }
   };
-  
+
   // Format settings handlers
   const handleFormatSettingChange = (field: string, value: any) => {
     setFormatSettings(prev => ({
@@ -605,14 +605,14 @@ Analyze the data provided and respond to the user's query with insights, pattern
             <TabsTrigger value="prompts">Prompt Templates</TabsTrigger>
             <TabsTrigger value="formatting">Response Formatting</TabsTrigger>
           </TabsList>
-          
+
           {activeTab === "models" && (
             <Button onClick={handleCreateModel}>
               <Plus className="mr-2 h-4 w-4" />
               Add New Model
             </Button>
           )}
-          
+
           {activeTab === "prompts" && (
             <Button onClick={handleCreatePrompt}>
               <Plus className="mr-2 h-4 w-4" />
@@ -902,12 +902,12 @@ Analyze the data provided and respond to the user's query with insights, pattern
                                 Concise
                               </span>
                               <Slider
-                                value={[newModel.responseVerbosity || 50]}
+                                value={[newModel.responseVerbosity ? Number(newModel.responseVerbosity) : 50]}
                                 min={0}
                                 max={100}
                                 step={10}
                                 onValueChange={(value) =>
-                                  handleInputChange("responseVerbosity", value[0])
+                                  handleInputChange("responseVerbosity", Number(value[0]))
                                 }
                                 className="flex-1"
                               />
@@ -1235,12 +1235,12 @@ Analyze the data provided and respond to the user's query with insights, pattern
                                   Concise
                                 </span>
                                 <Slider
-                                  value={[editedModel?.responseVerbosity || 50]}
+                                  value={[editedModel?.responseVerbosity ? Number(editedModel.responseVerbosity) : 50]}
                                   min={0}
                                   max={100}
                                   step={10}
                                   onValueChange={(value) =>
-                                    handleInputChange("responseVerbosity", value[0])
+                                    handleInputChange("responseVerbosity", Number(value[0]))
                                   }
                                   className="flex-1"
                                 />
@@ -1496,7 +1496,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                       <Input
                         id="template-name"
                         value={newPrompt.name}
-                        onChange={(e) => setNewPrompt({...newPrompt, name: e.target.value})}
+                        onChange={(e) => setNewPrompt({ ...newPrompt, name: e.target.value })}
                       />
                     </div>
 
@@ -1505,7 +1505,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                       <Input
                         id="template-description"
                         value={newPrompt.description || ''}
-                        onChange={(e) => setNewPrompt({...newPrompt, description: e.target.value})}
+                        onChange={(e) => setNewPrompt({ ...newPrompt, description: e.target.value })}
                       />
                     </div>
 
@@ -1515,7 +1515,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                         id="prompt-template"
                         className="min-h-[200px] font-mono text-sm"
                         value={newPrompt.template || ''}
-                        onChange={(e) => setNewPrompt({...newPrompt, template: e.target.value})}
+                        onChange={(e) => setNewPrompt({ ...newPrompt, template: e.target.value })}
                       />
                     </div>
 
@@ -1523,7 +1523,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                       <Switch
                         id="is-default"
                         checked={newPrompt.isDefault || false}
-                        onCheckedChange={(checked) => setNewPrompt({...newPrompt, isDefault: checked})}
+                        onCheckedChange={(checked) => setNewPrompt({ ...newPrompt, isDefault: checked })}
                       />
                       <Label htmlFor="is-default">Set as Default Template</Label>
                     </div>
@@ -1583,7 +1583,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                           <Input
                             id="edit-template-name"
                             value={editedPrompt.name}
-                            onChange={(e) => setEditedPrompt({...editedPrompt, name: e.target.value})}
+                            onChange={(e) => setEditedPrompt({ ...editedPrompt, name: e.target.value })}
                           />
                         </div>
 
@@ -1592,7 +1592,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                           <Input
                             id="edit-template-description"
                             value={editedPrompt.description || ''}
-                            onChange={(e) => setEditedPrompt({...editedPrompt, description: e.target.value})}
+                            onChange={(e) => setEditedPrompt({ ...editedPrompt, description: e.target.value })}
                           />
                         </div>
 
@@ -1602,7 +1602,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                             id="edit-prompt-template"
                             className="min-h-[200px] font-mono text-sm"
                             value={editedPrompt.template}
-                            onChange={(e) => setEditedPrompt({...editedPrompt, template: e.target.value})}
+                            onChange={(e) => setEditedPrompt({ ...editedPrompt, template: e.target.value })}
                           />
                         </div>
 
@@ -1610,7 +1610,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                           <Switch
                             id="edit-is-default"
                             checked={editedPrompt.isDefault || false}
-                            onCheckedChange={(checked) => setEditedPrompt({...editedPrompt, isDefault: checked})}
+                            onCheckedChange={(checked) => setEditedPrompt({ ...editedPrompt, isDefault: checked })}
                           />
                           <Label htmlFor="edit-is-default">Set as Default Template</Label>
                         </div>
@@ -1716,13 +1716,13 @@ Analyze the data provided and respond to the user's query with insights, pattern
                     <span className="text-sm text-muted-foreground">
                       Concise
                     </span>
-                    <Slider 
-                      value={[formatSettings.responseLength]} 
-                      min={0} 
-                      max={100} 
+                    <Slider
+                      value={[formatSettings.responseLength]}
+                      min={0}
+                      max={100}
                       step={10}
                       onValueChange={(value) => handleFormatSettingChange("responseLength", value[0])}
-                      className="flex-1" 
+                      className="flex-1"
                     />
                     <span className="text-sm text-muted-foreground">
                       Detailed
@@ -1732,7 +1732,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
 
                 <div className="space-y-2">
                   <Label htmlFor="formatting-style">Formatting Style</Label>
-                  <Select 
+                  <Select
                     value={formatSettings.formattingStyle}
                     onValueChange={(value) => handleFormatSettingChange("formattingStyle", value)}
                   >
@@ -1756,7 +1756,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
 
                 <div className="space-y-2">
                   <Label htmlFor="tone">Tone</Label>
-                  <Select 
+                  <Select
                     value={formatSettings.tone}
                     onValueChange={(value) => handleFormatSettingChange("tone", value)}
                   >
@@ -1775,8 +1775,8 @@ Analyze the data provided and respond to the user's query with insights, pattern
                 <Separator />
 
                 <div className="flex items-center space-x-2">
-                  <Switch 
-                    id="include-sources" 
+                  <Switch
+                    id="include-sources"
                     checked={formatSettings.includeSources}
                     onCheckedChange={(checked) => handleFormatSettingChange("includeSources", checked)}
                   />
@@ -1784,8 +1784,8 @@ Analyze the data provided and respond to the user's query with insights, pattern
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Switch 
-                    id="include-timestamps" 
+                  <Switch
+                    id="include-timestamps"
                     checked={formatSettings.includeTimestamps}
                     onCheckedChange={(checked) => handleFormatSettingChange("includeTimestamps", checked)}
                   />
@@ -1793,8 +1793,8 @@ Analyze the data provided and respond to the user's query with insights, pattern
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Switch 
-                    id="include-followup" 
+                  <Switch
+                    id="include-followup"
                     checked={formatSettings.suggestFollowUp}
                     onCheckedChange={(checked) => handleFormatSettingChange("suggestFollowUp", checked)}
                   />
@@ -1804,8 +1804,8 @@ Analyze the data provided and respond to the user's query with insights, pattern
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Switch 
-                    id="include-confidence" 
+                  <Switch
+                    id="include-confidence"
                     checked={formatSettings.showConfidence}
                     onCheckedChange={(checked) => handleFormatSettingChange("showConfidence", checked)}
                   />
@@ -1845,14 +1845,14 @@ Analyze the data provided and respond to the user's query with insights, pattern
                           <p>
                             Based on the scraped data, I've identified several key trends in the product pricing across different e-commerce platforms.
                           </p>
-                          
+
                           <h4 className="text-md font-semibold">Key Findings</h4>
                           <ul className="list-disc pl-5 space-y-1">
                             <li>Average price point is $67.89 across all platforms</li>
                             <li>Competitor A consistently prices 5-10% below market average</li>
                             <li>Premium features correlate with 15% higher conversion rates</li>
                           </ul>
-                          
+
                           <h4 className="text-md font-semibold">Recommendations</h4>
                           <ol className="list-decimal pl-5 space-y-1">
                             <li>Consider adjusting base price to $64.99 to remain competitive</li>
@@ -1889,21 +1889,21 @@ Analyze the data provided and respond to the user's query with insights, pattern
                           <div>
                             <span className="text-blue-500">// Analysis of E-commerce Pricing Data</span>
                             <br />
-                            <span className="text-purple-500">const</span> <span className="text-green-500">marketAnalysis</span> = {
+                            <span className="text-purple-500">const</span> <span className="text-green-500">marketAnalysis</span> = {`{`}
                             <br />
                             &nbsp;&nbsp;<span className="text-amber-500">averagePrice</span>: <span className="text-blue-500">67.89</span>,
                             <br />
-                            &nbsp;&nbsp;<span className="text-amber-500">competitorPricing</span>: {
+                            &nbsp;&nbsp;<span className="text-amber-500">competitorPricing</span>: {`{`}
                             <br />
                             &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-500">competitorA</span>: <span className="text-green-500">"5-10% below average"</span>,
                             <br />
                             &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-500">competitorB</span>: <span className="text-green-500">"on par with average"</span>
                             <br />
-                            &nbsp;&nbsp;},
+                            &nbsp;&nbsp;{`}`},
                             <br />
                             &nbsp;&nbsp;<span className="text-amber-500">conversionFactors</span>: [
                             <br />
-                            &nbsp;&nbsp;&nbsp;&nbsp;{ <span className="text-amber-500">factor</span>: <span className="text-green-500">"premium features"</span>, <span className="text-amber-500">impact</span>: <span className="text-green-500">"15% higher conversion"</span> }
+                            &nbsp;&nbsp;&nbsp;&nbsp;{`{`} <span className="text-amber-500">factor</span>: <span className="text-green-500">"premium features"</span>, <span className="text-amber-500">impact</span>: <span className="text-green-500">"15% higher conversion"</span> {`}`}
                             <br />
                             &nbsp;&nbsp;],
                             <br />
@@ -1917,7 +1917,7 @@ Analyze the data provided and respond to the user's query with insights, pattern
                             <br />
                             &nbsp;&nbsp;]
                             <br />
-                            };
+                            {`}`};
                           </div>
                         </div>
                       )}

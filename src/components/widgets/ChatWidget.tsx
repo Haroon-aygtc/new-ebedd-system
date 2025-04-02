@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, X, Maximize2, Minimize2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import styles from "./ChatWidget.module.css";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { sendMessage } from "@/api/services/chatService";
@@ -271,15 +272,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 <div className="flex justify-start">
                   <div className="max-w-[80%] rounded-lg p-3 bg-muted">
                     <div className="flex space-x-1">
-                      <div className="w-2 h-2 rounded-full bg-foreground/50 animate-bounce" />
-                      <div
-                        className="w-2 h-2 rounded-full bg-foreground/50 animate-bounce"
-                        style={{ animationDelay: "0.2s" }}
-                      />
-                      <div
-                        className="w-2 h-2 rounded-full bg-foreground/50 animate-bounce"
-                        style={{ animationDelay: "0.4s" }}
-                      />
+                      <div className="w-2 h-2 rounded-full bg-foreground/50 bounceDot" />
+                      <div className="w-2 h-2 rounded-full bg-foreground/50 bounceDot" />
+                      <div className="w-2 h-2 rounded-full bg-foreground/50 bounceDot" />
                     </div>
                   </div>
                 </div>

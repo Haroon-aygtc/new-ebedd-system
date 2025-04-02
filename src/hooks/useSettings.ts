@@ -11,7 +11,7 @@ interface Setting {
 
 export function useSettings() {
   const [settings, setSettings] = useState<Setting[]>([]);
-  const { data, loading, error, fetchData } = useApi<Setting[]>();
+  const { data, loading, error, fetchData } = useApi();
 
   useEffect(() => {
     fetchData("/settings");
@@ -19,7 +19,7 @@ export function useSettings() {
 
   useEffect(() => {
     if (data) {
-      setSettings(data);
+      setSettings(data as Setting[]);
     }
   }, [data]);
 
@@ -57,9 +57,9 @@ export function useSettings() {
         setSettings((prev) => {
           const index = prev.findIndex((s) => s.key === key);
           if (index >= 0) {
-            return [...prev.slice(0, index), result, ...prev.slice(index + 1)];
+            return [...prev.slice(0, index), result as Setting, ...prev.slice(index + 1)];
           } else {
-            return [...prev, result];
+            return [...prev, result as Setting];
           }
         });
       }

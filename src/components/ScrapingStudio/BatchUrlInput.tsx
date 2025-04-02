@@ -92,6 +92,7 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({ onUrlsSubmit }) => {
             className="absolute inset-0 opacity-0 w-full cursor-pointer"
             accept=".txt,.csv"
             onChange={handleFileUpload}
+            title="Upload a file containing URLs"
           />
           <Button variant="outline">
             <FileUp className="mr-2 h-4 w-4" />

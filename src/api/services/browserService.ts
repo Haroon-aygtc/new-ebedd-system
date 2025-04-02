@@ -3,7 +3,8 @@
  * Manages headless browser instances for JavaScript rendering and advanced scraping
  */
 
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer";
+import type { Browser, Page, CookieParam, HTTPRequest } from "puppeteer";
 import { getRandomUserAgent } from "./userAgentService";
 
 // Types
@@ -33,7 +34,7 @@ const defaultOptions: BrowserOptions = {
 };
 
 // Browser pool
-let browserInstances: puppeteer.Browser[] = [];
+let browserInstances: Browser[] = [];
 const MAX_BROWSER_INSTANCES = 3;
 
 /**
@@ -41,7 +42,7 @@ const MAX_BROWSER_INSTANCES = 3;
  */
 export const initBrowser = async (
   options: BrowserOptions = {},
-): Promise<puppeteer.Browser> => {
+): Promise<Browser> => {
   const mergedOptions = { ...defaultOptions, ...options };
 
   try {
@@ -69,7 +70,7 @@ export const initBrowser = async (
       if (oldestBrowser) {
         await oldestBrowser
           .close()
-          .catch((err) => console.error("Error closing browser:", err));
+          .catch((err: Error) => console.error("Error closing browser:", err));
       }
     }
 
@@ -84,9 +85,9 @@ export const initBrowser = async (
  * Get a page with configured options
  */
 export const getConfiguredPage = async (
-  browser: puppeteer.Browser,
+  browser: Browser,
   options: BrowserOptions = {},
-): Promise<puppeteer.Page> => {
+): Promise<Page> => {
   const mergedOptions = { ...defaultOptions, ...options };
 
   try {
@@ -112,7 +113,7 @@ export const getConfiguredPage = async (
 
     // Set cookies
     if (mergedOptions.cookies) {
-      const cookies = Object.entries(mergedOptions.cookies).map(
+      const cookies: CookieParam[] = Object.entries(mergedOptions.cookies).map(
         ([name, value]) => ({
           name,
           value,
@@ -120,12 +121,14 @@ export const getConfiguredPage = async (
           path: "/",
         }),
       );
+      // Use setCookie with the cookies array
+      // @ts-ignore - The type definition is incorrect, setCookie accepts an array
       await page.setCookie(...cookies);
     }
 
     // Set request interception
     await page.setRequestInterception(true);
-    page.on("request", (request) => {
+    page.on("request", (request: HTTPRequest) => {
       const resourceType = request.resourceType();
 
       if (
@@ -156,10 +159,10 @@ export const getConfiguredPage = async (
 export const scrapeWithBrowser = async (
   url: string,
   options: BrowserOptions = {},
-  evaluateFunction?: (page: puppeteer.Page) => Promise<any>,
+  evaluateFunction?: (page: Page) => Promise<any>,
 ): Promise<{ html: string; screenshot?: Buffer; result?: any }> => {
-  let browser: puppeteer.Browser | null = null;
-  let page: puppeteer.Page | null = null;
+  let browser: Browser | null = null;
+  let page: Page | null = null;
 
   try {
     browser = await initBrowser(options);
@@ -172,16 +175,17 @@ export const scrapeWithBrowser = async (
     });
 
     // Wait a bit for any lazy-loaded content
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Get page content
     const html = await page.content();
 
     // Take screenshot if needed
-    const screenshot = await page.screenshot({ type: "png", fullPage: true });
+    const screenshotBuffer = await page.screenshot({ type: "png", fullPage: true });
+    const screenshot = Buffer.from(screenshotBuffer);
 
     // Evaluate custom function if provided
-    let result;
+    let result: any = undefined;
     if (evaluateFunction) {
       result = await evaluateFunction(page);
     }
@@ -195,7 +199,7 @@ export const scrapeWithBrowser = async (
     if (page) {
       await page
         .close()
-        .catch((err) => console.error("Error closing page:", err));
+        .catch((err: Error) => console.error("Error closing page:", err));
     }
   }
 };
@@ -207,7 +211,7 @@ export const closeAllBrowsers = async (): Promise<void> => {
   for (const browser of browserInstances) {
     await browser
       .close()
-      .catch((err) => console.error("Error closing browser:", err));
+      .catch((err: Error) => console.error("Error closing browser:", err));
   }
   browserInstances = [];
 };
@@ -216,10 +220,10 @@ export const closeAllBrowsers = async (): Promise<void> => {
  * Extract data from a page using selectors
  */
 export const extractDataWithSelectors = async (
-  page: puppeteer.Page,
+  page: Page,
   selectors: Array<{ selector: string; type: string; name?: string }>,
 ): Promise<Record<string, any>> => {
-  return page.evaluate((selectorsArray) => {
+  return page.evaluate((selectorsArray: Array<{ selector: string; type: string; name?: string }>) => {
     const result: Record<string, any> = {};
 
     for (const { selector, type, name } of selectorsArray) {

@@ -1,5 +1,5 @@
 import axios from "axios";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio";
 import { v4 as uuidv4 } from "uuid";
 import {
   getNextProxy,
@@ -7,7 +7,7 @@ import {
   markProxySuccess,
   markProxyFailure,
 } from "./proxyService";
-import { getRandomUserAgent } from "./userAgentService";
+import { getRandomUserAgent, UserAgent } from "./userAgentService";
 import { scrapeWithBrowser, extractDataWithSelectors } from "./browserService";
 
 interface ScrapeJob {
@@ -27,7 +27,7 @@ interface ScrapeOptions {
   waitForSelector?: string;
   timeout?: number;
   proxy?: string | "auto" | "none";
-  userAgent?: string;
+  userAgent?: string | UserAgent;
   cookies?: Record<string, string>;
   headers?: Record<string, string>;
   followRedirects?: boolean;
@@ -220,7 +220,7 @@ const scrapeWithCheerio = async (
     const requestOptions: any = {
       timeout: options.timeout,
       headers: {
-        "User-Agent": options.userAgent || getRandomUserAgent().value,
+        "User-Agent": (typeof options.userAgent === "string" ? options.userAgent : options.userAgent?.toString() || getRandomUserAgent().toString()) as string,
         ...options.headers,
       },
       maxRedirects: options.followRedirects ? 5 : 0,
@@ -265,15 +265,15 @@ const scrapeWithCheerio = async (
     if (options.extractionMode === "semantic") {
       // Auto-detect tables
       const tables: any[] = [];
-      $("table").each((i, table) => {
+      $("table").each((_, table) => {
         const tableData: any[] = [];
         $(table)
           .find("tr")
-          .each((j, row) => {
+          .each((_, row) => {
             const rowData: string[] = [];
             $(row)
               .find("td, th")
-              .each((k, cell) => {
+              .each((_, cell) => {
                 rowData.push($(cell).text().trim());
               });
             if (rowData.length > 0) {
@@ -290,11 +290,11 @@ const scrapeWithCheerio = async (
 
       // Auto-detect lists
       const lists: any[] = [];
-      $("ul, ol").each((i, list) => {
+      $("ul, ol").each((_, list) => {
         const listItems: string[] = [];
         $(list)
           .find("li")
-          .each((j, item) => {
+          .each((_, item) => {
             listItems.push($(item).text().trim());
           });
         if (listItems.length > 0) {
@@ -307,7 +307,7 @@ const scrapeWithCheerio = async (
 
       // Auto-detect articles/content
       const articles: any[] = [];
-      $("article, .article, .content, .post").each((i, article) => {
+      $("article, .article, .content, .post").each((_, article) => {
         const title = $(article).find("h1, h2, .title").first().text().trim();
         const content = $(article).text().trim();
         articles.push({ title, content });
@@ -345,7 +345,7 @@ const scrapeWithCheerio = async (
               .attr(selector.attribute);
           } else if (selector.type === "list") {
             const items: string[] = [];
-            elements.each((i, el) => {
+            elements.each((_, el) => {
               items.push($(el).text().trim());
             });
             extractedData[selector.name || selector.selector] = items;
@@ -430,10 +430,11 @@ const scrapeWithJavaScript = async (
     // Configure browser options
     const browserOptions = {
       headless: true,
-      userAgent: options.userAgent || getRandomUserAgent().value,
+      userAgent: typeof options.userAgent === "string" ? options.userAgent : getRandomUserAgent().toString(),
       timeout: options.timeout,
       blockImages: options.formatOptions?.excludeMedia,
       cookies: options.cookies,
+      proxy: undefined as string | undefined, // Add proxy property
     };
 
     // Apply proxy if needed
@@ -447,7 +448,10 @@ const scrapeWithJavaScript = async (
     // Scrape with browser
     const { html, result } = await scrapeWithBrowser(
       url,
-      browserOptions,
+      {
+        ...browserOptions,
+        userAgent: browserOptions.userAgent.toString(),
+      },
       async (page) => {
         // Wait for specific selector if provided
         if (options.waitForSelector) {
@@ -455,7 +459,7 @@ const scrapeWithJavaScript = async (
             .waitForSelector(options.waitForSelector, {
               timeout: options.timeout || 30000,
             })
-            .catch(() => {});
+            .catch(() => { });
         }
 
         // Extract data using selectors
@@ -703,7 +707,7 @@ export const discoverUrls = async (startUrl: string, options: any = {}) => {
 
           // Parse HTML with cheerio to extract links
           const $ = cheerio.load(html);
-          $("a[href]").each((i, link) => {
+          $("a[href]").each((_, link) => {
             try {
               const href = $(link).attr("href");
               if (!href) return;
@@ -734,14 +738,16 @@ export const discoverUrls = async (startUrl: string, options: any = {}) => {
           const response = await axios.get(url, {
             timeout: 10000,
             headers: {
-              "User-Agent": getRandomUserAgent().value,
+              "User-Agent": typeof options.userAgent === "string" ? options.userAgent : getRandomUserAgent(),
+              ...options.headers,
             },
+            maxRedirects: options.followRedirects ? 5 : 0,
           });
 
           const html = response.data;
           const $ = cheerio.load(html);
 
-          $("a[href]").each((i, link) => {
+          $("a[href]").each((_, link) => {
             try {
               const href = $(link).attr("href");
               if (!href) return;
@@ -776,6 +782,50 @@ export const discoverUrls = async (startUrl: string, options: any = {}) => {
     return Array.from(discovered);
   } catch (error) {
     console.error("Error discovering URLs:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get the HTML content of a page
+ * @param url The URL to fetch
+ * @param options Optional configuration
+ */
+export const getPageContent = async (url: string, options: any = {}) => {
+  try {
+    // Determine if we should use browser automation
+    const useJavaScript = options.javascript === true;
+
+    if (useJavaScript) {
+      // Use browser automation for JavaScript-heavy sites
+      const browserOptions = {
+        headless: true,
+        userAgent: getRandomUserAgent(),
+        timeout: options.timeout || 30000,
+        proxy: options.proxy || 'none',
+      };
+
+      const { html } = await scrapeWithBrowser(url, {
+        ...browserOptions,
+        userAgent: browserOptions.userAgent.toString(),
+      });
+      return html;
+    } else {
+      // Use axios for static sites
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': getRandomUserAgent().toString(),
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+        } as any,
+        timeout: options.timeout || 30000,
+        maxRedirects: 5
+      });
+
+      return response.data;
+    }
+  } catch (error) {
+    console.error('Error fetching page content:', error);
     throw error;
   }
 };

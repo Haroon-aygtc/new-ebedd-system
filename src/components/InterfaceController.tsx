@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2 } from "lucide-react";
-import ScrapingStudio from "./ScrapingStudio";
+import { Loader2, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
+import NewScrapingStudio from "./ScrapingStudio/NewScrapingStudio";
 import ChatInterface from "./ChatInterface";
 import DataDashboard from "./DataDashboard";
 import ModelManagement from "./ModelManagement";
@@ -163,11 +164,19 @@ const InterfaceController: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4 h-screen flex flex-col">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold">Intelligent Scraping Studio</h1>
-        <p className="text-muted-foreground">
-          AI-Powered Web Scraping & Chat System
-        </p>
+      <header className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Intelligent Scraping Studio</h1>
+          <p className="text-muted-foreground">
+            AI-Powered Web Scraping & Chat System
+          </p>
+        </div>
+        <Link to="/browser-demo">
+          <Button variant="outline" className="flex items-center gap-2">
+            <ExternalLink className="h-4 w-4" />
+            Browser Demo
+          </Button>
+        </Link>
       </header>
 
       <Tabs
@@ -191,13 +200,7 @@ const InterfaceController: React.FC = () => {
           ) : (
             <>
               <TabsContent value="scraping" className="h-full">
-                <ScrapingStudio
-                  onScrapingComplete={handleScrapingComplete}
-                  datasets={datasets}
-                  onExport={handleExportData}
-                  currentDatasetId={currentDatasetId}
-                  onDatasetSelect={handleDatasetSelect}
-                />
+                <NewScrapingStudio />
               </TabsContent>
 
               <TabsContent value="chat" className="h-full">

@@ -156,7 +156,7 @@ export const callGoogleAI = async (
     }
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model.version || "gemini-pro"}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1/models/${model.version || "gemini-1.5-flash"}:generateContent`,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
