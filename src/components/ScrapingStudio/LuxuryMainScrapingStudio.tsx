@@ -1,18 +1,24 @@
 import React, { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/luxury-card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/luxury-tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { useScraper } from "@/hooks/useScraper";
-import { Input } from "@/components/ui/input";
-import { Search, MousePointer } from "lucide-react";
+import { Input } from "@/components/ui/luxury-input";
+import { Search, MousePointer, Settings, AlertTriangle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Import sub-components
-import ScrapingHeader from "./ScrapingHeader";
-import UrlInput from "./UrlInput";
+import LuxuryScrapingHeader from "./LuxuryScrapingHeader";
+import LuxuryUrlInput from "./LuxuryUrlInput";
 import BatchUrlsBar from "./BatchUrlsBar";
 import ProgressBar from "./ProgressBar";
-import BrowserPreview from "./BrowserPreview";
-import SelectorPanel from "./SelectorPanel";
+import LuxuryBrowserPreview from "./LuxuryBrowserPreview";
+import LuxurySelectorPanel from "./LuxurySelectorPanel";
 import ResultsPanel from "./ResultsPanel";
 import BatchUrlDialog from "./BatchUrlDialog";
 import DiscoveryDialog from "./DiscoveryDialog";
@@ -40,7 +46,7 @@ interface ScrapedItem {
   error?: string;
 }
 
-interface ScrapingStudioProps {
+interface LuxuryScrapingStudioProps {
   onExport?: (data: any) => void;
   onOpenBatchDialog?: () => void;
   onOpenDiscoveryDialog?: () => void;
@@ -49,7 +55,9 @@ interface ScrapingStudioProps {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
-const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
+const LuxuryMainScrapingStudio: React.FC<LuxuryScrapingStudioProps> = (
+  props,
+) => {
   const { onExport, batchUrls = [] } = props;
   const { toast } = useToast();
 
@@ -74,6 +82,7 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
   const [showUrlDiscoveryDialog, setShowUrlDiscoveryDialog] =
     useState<boolean>(false);
   const [showExportDialog, setShowExportDialog] = useState<boolean>(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState<boolean>(false);
 
   // Dialog states - these are now handled by the parent component
   // We'll just use these functions to communicate with the parent
@@ -396,9 +405,9 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
   }, [selectedElements, searchTerm]);
 
   return (
-    <div className="bg-background w-full h-full flex flex-col overflow-hidden">
-      <Card className="flex-1 flex flex-col overflow-hidden w-full">
-        <ScrapingHeader
+    <div className="bg-luxury-50 w-full h-full flex flex-col overflow-hidden">
+      <Card className="flex-1 flex flex-col overflow-hidden w-full shadow-luxury">
+        <LuxuryScrapingHeader
           isScraping={isScraping}
           onStartScraping={handleStartScraping}
           onStopScraping={handleStopScraping}
@@ -406,28 +415,48 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
           isStartDisabled={isLoading || selectedElements.length === 0}
           isSelectMode={selectModeEnabled}
           onToggleSelectMode={toggleSelectMode}
+          onOpenSettings={() => setShowSettingsDialog(true)}
+          selectedElementsCount={selectedElements.length}
         />
 
-        {serverStatus === "offline" && (
-          <div className="px-4 py-2 bg-destructive/10 text-destructive text-sm">
-            The proxy server appears to be offline. Element selection and
-            scraping may not work properly.
-          </div>
-        )}
+        <AnimatePresence>
+          {serverStatus === "offline" && (
+            <motion.div
+              className="px-4 py-3 bg-red-50 border-b border-red-200 text-red-700 text-sm flex items-center gap-2"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              The proxy server appears to be offline. Element selection and
+              scraping may not work properly.
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Add a helper message when select mode is enabled */}
-        {selectModeEnabled && activeTab === "preview" && (
-          <div className="px-4 py-2 bg-blue-600 text-white text-sm flex items-center rounded-md mx-4 shadow-md">
-            <MousePointer className="h-4 w-4 mr-2" />
-            Selection Mode is ON. Click on elements in the preview to select
-            them for scraping.
-          </div>
-        )}
+        <AnimatePresence>
+          {selectModeEnabled && activeTab === "preview" && (
+            <motion.div
+              className="px-4 py-3 bg-navy-600 text-white text-sm flex items-center gap-2 m-4 rounded-lg shadow-md"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            >
+              <MousePointer className="h-4 w-4 text-white" />
+              <span>
+                Selection Mode is ON. Click on elements in the preview to select
+                them for scraping.
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="px-4 pb-4 space-y-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              <UrlInput onLoadUrl={loadUrl} disabled={isScraping} />
+              <LuxuryUrlInput onLoadUrl={loadUrl} disabled={isScraping} />
             </div>
 
             <BatchUrlsBar
@@ -460,7 +489,7 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
 
             <div className="flex-1 mt-2 min-h-0 overflow-hidden">
               <TabsContent value="preview" className="h-full m-0">
-                <BrowserPreview
+                <LuxuryBrowserPreview
                   isLoading={isLoading}
                   url={url}
                   onElementSelect={handleElementSelect}
@@ -479,7 +508,7 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
                       className="pl-8"
                     />
                   </div>
-                  <SelectorPanel
+                  <LuxurySelectorPanel
                     selectors={filteredSelectors}
                     onRemoveSelector={handleRemoveSelector}
                     onClearSelectors={handleClearSelectors}
@@ -525,4 +554,4 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
   );
 };
 
-export default MainScrapingStudio;
+export default LuxuryMainScrapingStudio;
