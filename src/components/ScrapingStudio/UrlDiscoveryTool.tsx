@@ -10,12 +10,14 @@ import { Loader2, Search, Globe, Check, X } from "lucide-react";
 
 interface UrlDiscoveryToolProps {
   onUrlsDiscover: (urls: string[]) => void;
+  startUrl?: string;
 }
 
 const UrlDiscoveryTool: React.FC<UrlDiscoveryToolProps> = ({
   onUrlsDiscover,
+  startUrl: initialStartUrl = "",
 }) => {
-  const [startUrl, setStartUrl] = useState("");
+  const [startUrl, setStartUrl] = useState(initialStartUrl);
   const [maxDepth, setMaxDepth] = useState(1);
   const [maxUrls, setMaxUrls] = useState(50);
   const [sameDomain, setSameDomain] = useState(true);
@@ -32,45 +34,31 @@ const UrlDiscoveryTool: React.FC<UrlDiscoveryToolProps> = ({
     setSelectedUrls([]);
 
     try {
-      // In a real implementation, this would be an API call to your backend
-      // For now, we'll simulate the API call with a timeout and mock data
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+      const response = await fetch(`${API_BASE_URL}/discover-urls`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          startUrl,
+          maxDepth,
+          maxUrls,
+          sameDomain,
+          urlPattern: urlPattern || undefined,
+        }),
+      });
 
-      // Generate some mock URLs based on the start URL
-      const urlObj = new URL(startUrl);
-      const domain = urlObj.hostname;
-      const path = urlObj.pathname;
-
-      // Generate mock discovered URLs
-      const mockUrls = [
-        startUrl,
-        `${urlObj.protocol}//${domain}/products`,
-        `${urlObj.protocol}//${domain}/categories`,
-        `${urlObj.protocol}//${domain}/about`,
-        `${urlObj.protocol}//${domain}/contact`,
-        `${urlObj.protocol}//${domain}/blog`,
-        `${urlObj.protocol}//${domain}/products/item1`,
-        `${urlObj.protocol}//${domain}/products/item2`,
-        `${urlObj.protocol}//${domain}/products/item3`,
-        `${urlObj.protocol}//${domain}/categories/electronics`,
-        `${urlObj.protocol}//${domain}/categories/clothing`,
-        `${urlObj.protocol}//${domain}/blog/post1`,
-        `${urlObj.protocol}//${domain}/blog/post2`,
-      ];
-
-      // Filter by pattern if provided
-      let filteredUrls = mockUrls;
-      if (urlPattern) {
-        const regex = new RegExp(urlPattern);
-        filteredUrls = mockUrls.filter((url) => regex.test(url));
+      if (!response.ok) {
+        throw new Error(`Failed to discover URLs: ${response.statusText}`);
       }
 
-      // Limit to maxUrls
-      filteredUrls = filteredUrls.slice(0, maxUrls);
+      const data = await response.json();
+      const discoveredUrls = data.urls || [];
 
-      setDiscoveredUrls(filteredUrls);
+      setDiscoveredUrls(discoveredUrls);
       // Auto-select all discovered URLs
-      setSelectedUrls(filteredUrls);
+      setSelectedUrls(discoveredUrls);
     } catch (error) {
       console.error("Error discovering URLs:", error);
     } finally {

@@ -3,6 +3,8 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { useScraper } from "@/hooks/useScraper";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 
 // Import sub-components
 import ScrapingHeader from "./ScrapingHeader";
@@ -12,6 +14,9 @@ import ProgressBar from "./ProgressBar";
 import BrowserPreview from "./BrowserPreview";
 import SelectorPanel from "./SelectorPanel";
 import ResultsPanel from "./ResultsPanel";
+import BatchUrlDialog from "./BatchUrlDialog";
+import DiscoveryDialog from "./DiscoveryDialog";
+import ExportDialog from "./ExportDialog";
 
 // Types
 interface Selector {
@@ -59,18 +64,29 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
   const [selectedElements, setSelectedElements] = useState<Selector[]>([]);
   const [scrapedData, setScrapedData] = useState<ScrapedItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+
+  // Add state for dialogs
+  const [showBatchUrlDialog, setShowBatchUrlDialog] = useState<boolean>(false);
+  const [showUrlDiscoveryDialog, setShowUrlDiscoveryDialog] =
+    useState<boolean>(false);
+  const [showExportDialog, setShowExportDialog] = useState<boolean>(false);
 
   // Dialog states - these are now handled by the parent component
   // We'll just use these functions to communicate with the parent
   const handleOpenBatchDialog = () => {
     if (typeof props.onOpenBatchDialog === "function") {
       props.onOpenBatchDialog();
+    } else {
+      setShowBatchUrlDialog(true);
     }
   };
 
   const handleOpenDiscoveryDialog = () => {
     if (typeof props.onOpenDiscoveryDialog === "function") {
       props.onOpenDiscoveryDialog();
+    } else {
+      setShowUrlDiscoveryDialog(true);
     }
   };
 
@@ -115,7 +131,6 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
 
   // Handle element selection
   const handleElementSelect = (selector: string, element: HTMLElement) => {
-    console.log("Element selected:", selector, element);
     // Generate a unique ID
     const id = `selector-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
@@ -184,10 +199,24 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
     try {
       // Use the hook's startScraping function
       const urlsToScrape = urls.length > 0 ? urls : [url];
-      const results = await startScraping(urlsToScrape);
+      const scrapingConfig = {
+        paginationSelector: "",
+        maxPages: 1,
+        delay: 1000,
+        followLinks: false,
+        headless: true,
+      };
+
+      const results = await startScraping(
+        urlsToScrape,
+        selectedElements,
+        scrapingConfig,
+      );
 
       if (results) {
         setScrapedData(results);
+        // Save to localStorage for export functionality
+        localStorage.setItem("scraped-data", JSON.stringify(results));
       }
 
       setProgress(100);
@@ -211,13 +240,13 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
     if (onExport && scrapedData.length > 0) {
       onExport(scrapedData);
     } else {
-      // Default export behavior if no callback provided
-      handleExportFormat("json");
+      // Open export dialog
+      setShowExportDialog(true);
     }
   };
 
   // Handle export format
-  const handleExportFormat = (format: string) => {
+  const handleExportFormat = (format: string, filename?: string) => {
     if (scrapedData.length === 0) {
       toast({
         title: "No data to export",
@@ -228,7 +257,13 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
     }
 
     // Use the hook's exportData function
-    exportData(format as "json" | "csv");
+    exportData(format as "json" | "csv", filename);
+
+    toast({
+      title: "Data exported",
+      description: `Data has been exported in ${format.toUpperCase()} format`,
+      variant: "default",
+    });
   };
 
   // Selector panel handlers
@@ -279,6 +314,12 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
       description: `${batchUrls.length} URLs have been added to the queue`,
       variant: "default",
     });
+
+    // If we have a URL, load the first one
+    if (batchUrls.length > 0 && !url) {
+      loadUrl(batchUrls[0]);
+      setCurrentUrlIndex(0);
+    }
   };
 
   const handleUrlDiscoverySubmit = (discoveredUrls: string[]) => {
@@ -290,12 +331,29 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
       description: `${discoveredUrls.length} URLs have been discovered and added to the queue`,
       variant: "default",
     });
+
+    // If we have a URL, load the first one
+    if (discoveredUrls.length > 0 && !url) {
+      loadUrl(discoveredUrls[0]);
+      setCurrentUrlIndex(0);
+    }
   };
 
   // Toggle select mode when the tab changes
   useEffect(() => {
     setIsSelectMode(activeTab === "preview");
   }, [activeTab]);
+
+  // Filter selectors based on search term
+  const filteredSelectors = React.useMemo(() => {
+    if (!searchTerm) return selectedElements;
+
+    return selectedElements.filter(
+      (selector) =>
+        selector.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        selector.selector.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [selectedElements, searchTerm]);
 
   return (
     <div className="bg-background w-full h-full flex flex-col overflow-hidden">
@@ -353,14 +411,25 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
               </TabsContent>
 
               <TabsContent value="selectors" className="h-full m-0">
-                <SelectorPanel
-                  selectors={selectedElements}
-                  onRemoveSelector={handleRemoveSelector}
-                  onClearSelectors={handleClearSelectors}
-                  onTypeChange={handleSelectorTypeChange}
-                  onNameChange={handleSelectorNameChange}
-                  onAttributeChange={handleSelectorAttributeChange}
-                />
+                <div className="flex flex-col h-full">
+                  <div className="mb-4 relative">
+                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search selectors..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                  <SelectorPanel
+                    selectors={filteredSelectors}
+                    onRemoveSelector={handleRemoveSelector}
+                    onClearSelectors={handleClearSelectors}
+                    onTypeChange={handleSelectorTypeChange}
+                    onNameChange={handleSelectorNameChange}
+                    onAttributeChange={handleSelectorAttributeChange}
+                  />
+                </div>
               </TabsContent>
 
               <TabsContent value="results" className="h-full m-0">
@@ -374,8 +443,26 @@ const MainScrapingStudio: React.FC<ScrapingStudioProps> = (props) => {
         </div>
       </Card>
 
-      {/* Batch URL Dialog would go here */}
-      {/* URL Discovery Dialog would go here */}
+      {/* Dialogs */}
+      <BatchUrlDialog
+        isOpen={showBatchUrlDialog}
+        onClose={() => setShowBatchUrlDialog(false)}
+        onSubmit={handleBatchUrlSubmit}
+        initialUrls={urls}
+      />
+
+      <DiscoveryDialog
+        isOpen={showUrlDiscoveryDialog}
+        onClose={() => setShowUrlDiscoveryDialog(false)}
+        onSubmit={handleUrlDiscoverySubmit}
+        currentUrl={url}
+      />
+
+      <ExportDialog
+        isOpen={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        onExport={handleExportFormat}
+      />
     </div>
   );
 };

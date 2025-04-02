@@ -8,11 +8,15 @@ import { X, Upload, FileUp } from "lucide-react";
 
 interface BatchUrlInputProps {
   onUrlsSubmit: (urls: string[]) => void;
+  initialUrls?: string[];
 }
 
-const BatchUrlInput: React.FC<BatchUrlInputProps> = ({ onUrlsSubmit }) => {
+const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
+  onUrlsSubmit,
+  initialUrls = [],
+}) => {
   const [inputValue, setInputValue] = useState("");
-  const [urls, setUrls] = useState<string[]>([]);
+  const [urls, setUrls] = useState<string[]>(initialUrls);
 
   const handleAddUrls = () => {
     if (!inputValue.trim()) return;

@@ -8,26 +8,28 @@ import {
 import UrlDiscoveryTool from "./UrlDiscoveryTool";
 
 interface DiscoveryDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onUrlsDiscover: (urls: string[]) => void;
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (urls: string[]) => void;
+  currentUrl?: string;
 }
 
 const DiscoveryDialog: React.FC<DiscoveryDialogProps> = ({
-  open,
-  onOpenChange,
-  onUrlsDiscover,
+  isOpen,
+  onClose,
+  onSubmit,
+  currentUrl = "",
 }) => {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>URL Discovery Tool</DialogTitle>
         </DialogHeader>
         <UrlDiscoveryTool
+          startUrl={currentUrl}
           onUrlsDiscover={(urls) => {
-            onUrlsDiscover(urls);
-            onOpenChange(false);
+            onSubmit(urls);
           }}
         />
       </DialogContent>

@@ -8,26 +8,28 @@ import {
 import BatchUrlInput from "./BatchUrlInput";
 
 interface BatchUrlDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onUrlsSubmit: (urls: string[]) => void;
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (urls: string[]) => void;
+  initialUrls?: string[];
 }
 
 const BatchUrlDialog: React.FC<BatchUrlDialogProps> = ({
-  open,
-  onOpenChange,
-  onUrlsSubmit,
+  isOpen,
+  onClose,
+  onSubmit,
+  initialUrls = [],
 }) => {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Batch URL Input</DialogTitle>
         </DialogHeader>
         <BatchUrlInput
+          initialUrls={initialUrls}
           onUrlsSubmit={(urls) => {
-            onUrlsSubmit(urls);
-            onOpenChange(false);
+            onSubmit(urls);
           }}
         />
       </DialogContent>

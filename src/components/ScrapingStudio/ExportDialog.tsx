@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -20,140 +19,34 @@ import {
   Save,
   Code,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ExportDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  data: any;
-  onExport: (data: any, format: string) => void;
+  isOpen: boolean;
+  onClose: () => void;
+  onExport: (format: string, filename?: string) => void;
 }
 
 const ExportDialog: React.FC<ExportDialogProps> = ({
-  open,
-  onOpenChange,
-  data,
+  isOpen,
+  onClose,
   onExport,
 }) => {
   const [activeTab, setActiveTab] = useState("json");
   const [fileName, setFileName] = useState("scraped-data");
   const [tableName, setTableName] = useState("scraped_data");
-  const [exportFormat, setExportFormat] = useState<
-    "json" | "csv" | "sql" | "vector"
-  >("json");
-  const [exportedContent, setExportedContent] = useState<string>("");
-  const [isExporting, setIsExporting] = useState(false);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
-    setExportFormat(value as "json" | "csv" | "sql" | "vector");
   };
 
-  const handleExport = async () => {
-    try {
-      setIsExporting(true);
-
-      // Generate the export content
-      let content = "";
-
-      // Simple implementation for demo purposes
-      if (exportFormat === "json") {
-        content = JSON.stringify(data, null, 2);
-      } else if (exportFormat === "csv") {
-        // Basic CSV conversion
-        if (data && data.length > 0) {
-          const headers = Object.keys(data[0]).join(",");
-          const rows = data.map((item: any) =>
-            Object.values(item)
-              .map((value) =>
-                typeof value === "string"
-                  ? `"${value.replace(/"/g, '""')}"`
-                  : value,
-              )
-              .join(","),
-          );
-          content = [headers, ...rows].join("\n");
-        }
-      } else if (exportFormat === "sql") {
-        // Basic SQL conversion
-        if (data && data.length > 0) {
-          const columns = Object.keys(data[0]);
-          content = `CREATE TABLE ${tableName} (\n`;
-          content += columns.map((col) => `  ${col} TEXT`).join(",\n");
-          content += "\n);\n\n";
-
-          data.forEach((item: any) => {
-            const values = columns.map((col) => {
-              const value = item[col];
-              return typeof value === "string"
-                ? `'${value.replace(/'/g, "''")}'`
-                : value;
-            });
-
-            content += `INSERT INTO ${tableName} (${columns.join(", ")}) VALUES (${values.join(", ")});\n`;
-          });
-        }
-      } else if (exportFormat === "vector") {
-        // Vector format (simplified for demo)
-        content = JSON.stringify(
-          {
-            vectors: data,
-            metadata: {
-              format: "vector",
-              dimensions: data.length,
-              created: new Date().toISOString(),
-            },
-          },
-          null,
-          2,
-        );
-      }
-
-      setExportedContent(content);
-
-      // Call the parent's onExport function
-      onExport(data, exportFormat);
-    } catch (error) {
-      console.error("Error exporting data:", error);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleDownload = () => {
-    if (!exportedContent) return;
-
-    const extensions = {
-      json: "json",
-      csv: "csv",
-      sql: "sql",
-      vector: "json",
-    };
-
-    const blob = new Blob([exportedContent], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${fileName}.${extensions[exportFormat]}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleSaveToProject = () => {
-    // In a real implementation, this would save to a project folder
-    alert("Data saved to project folder");
-    onOpenChange(false);
-  };
-
-  const handleSaveToDatabase = () => {
-    // In a real implementation, this would save to a database
-    alert("Data saved to database");
-    onOpenChange(false);
+  const handleExport = () => {
+    onExport(activeTab, fileName);
+    onClose();
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Export Scraped Data</DialogTitle>
@@ -167,7 +60,7 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
           onValueChange={handleTabChange}
           className="mt-4"
         >
-          <TabsList className="grid grid-cols-4 mb-4">
+          <TabsList className="grid grid-cols-2 mb-4">
             <TabsTrigger value="json" className="flex items-center">
               <FileJson className="mr-2 h-4 w-4" />
               JSON
@@ -175,14 +68,6 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
             <TabsTrigger value="csv" className="flex items-center">
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               CSV
-            </TabsTrigger>
-            <TabsTrigger value="sql" className="flex items-center">
-              <Database className="mr-2 h-4 w-4" />
-              SQL
-            </TabsTrigger>
-            <TabsTrigger value="vector" className="flex items-center">
-              <Code className="mr-2 h-4 w-4" />
-              Vector
             </TabsTrigger>
           </TabsList>
 
@@ -197,81 +82,17 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
                   placeholder="scraped-data"
                 />
               </div>
-
-              {activeTab === "sql" && (
-                <div>
-                  <Label htmlFor="table-name">Table Name</Label>
-                  <Input
-                    id="table-name"
-                    value={tableName}
-                    onChange={(e) => setTableName(e.target.value)}
-                    placeholder="scraped_data"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="border rounded-md p-4">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="font-medium">Export Preview</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExport}
-                  disabled={isExporting}
-                >
-                  {isExporting ? "Generating..." : "Generate Preview"}
-                </Button>
-              </div>
-
-              <ScrollArea className="h-60 border rounded-md bg-muted/50 p-2">
-                <pre className="text-xs font-mono whitespace-pre-wrap">
-                  {exportedContent ||
-                    'Click "Generate Preview" to see the exported data'}
-                </pre>
-              </ScrollArea>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div
-                className="border rounded-md p-4 flex flex-col items-center justify-center hover:bg-accent/50 cursor-pointer transition-colors"
-                onClick={handleSaveToProject}
-              >
-                <HardDrive className="h-8 w-8 mb-2" />
-                <h3 className="font-medium">Save to Project</h3>
-                <p className="text-xs text-muted-foreground text-center mt-1">
-                  Save as a file in your project folder
-                </p>
-              </div>
-
-              <div
-                className="border rounded-md p-4 flex flex-col items-center justify-center hover:bg-accent/50 cursor-pointer transition-colors"
-                onClick={handleSaveToDatabase}
-              >
-                <Database className="h-8 w-8 mb-2" />
-                <h3 className="font-medium">Save to Database</h3>
-                <p className="text-xs text-muted-foreground text-center mt-1">
-                  Store in your connected database
-                </p>
-              </div>
             </div>
           </div>
         </Tabs>
 
         <DialogFooter className="flex justify-between">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onClose()}>
             Cancel
           </Button>
           <div className="space-x-2">
-            <Button
-              variant="secondary"
-              onClick={handleDownload}
-              disabled={!exportedContent}
-            >
+            <Button onClick={handleExport}>
               <Save className="mr-2 h-4 w-4" />
-              Download File
-            </Button>
-            <Button onClick={handleExport} disabled={isExporting}>
               Export Data
             </Button>
           </div>
