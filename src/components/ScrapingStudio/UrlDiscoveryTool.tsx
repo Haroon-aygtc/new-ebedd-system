@@ -9,13 +9,11 @@ import { Slider } from "@/components/ui/slider";
 import { Loader2, Search, Globe, Check, X } from "lucide-react";
 
 interface UrlDiscoveryToolProps {
-  onDiscover: (urls: string[]) => void;
-  onCancel?: () => void;
+  onUrlsDiscover: (urls: string[]) => void;
 }
 
 const UrlDiscoveryTool: React.FC<UrlDiscoveryToolProps> = ({
-  onDiscover,
-  onCancel,
+  onUrlsDiscover,
 }) => {
   const [startUrl, setStartUrl] = useState("");
   const [maxDepth, setMaxDepth] = useState(1);
@@ -97,7 +95,7 @@ const UrlDiscoveryTool: React.FC<UrlDiscoveryToolProps> = ({
   };
 
   const handleUseSelected = () => {
-    onDiscover(selectedUrls);
+    onUrlsDiscover(selectedUrls);
   };
 
   return (
@@ -230,11 +228,6 @@ const UrlDiscoveryTool: React.FC<UrlDiscoveryToolProps> = ({
           </ScrollArea>
 
           <div className="flex justify-end space-x-2">
-            {onCancel && (
-              <Button variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-            )}
             <Button
               onClick={handleUseSelected}
               disabled={selectedUrls.length === 0}

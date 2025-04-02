@@ -7,19 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { X, Upload, FileUp } from "lucide-react";
 
 interface BatchUrlInputProps {
-  urls: string[];
-  onChange: (urls: string[]) => void;
-  disabled?: boolean;
-  onSubmit?: (urls: string[]) => void;
+  onUrlsSubmit: (urls: string[]) => void;
 }
 
-const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
-  urls,
-  onChange,
-  disabled = false,
-  onSubmit,
-}) => {
+const BatchUrlInput: React.FC<BatchUrlInputProps> = ({ onUrlsSubmit }) => {
   const [inputValue, setInputValue] = useState("");
+  const [urls, setUrls] = useState<string[]>([]);
 
   const handleAddUrls = () => {
     if (!inputValue.trim()) return;
@@ -32,13 +25,13 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
 
     // Add to existing URLs, removing duplicates
     const combinedUrls = [...new Set([...urls, ...newUrls])];
-    onChange(combinedUrls);
+    setUrls(combinedUrls);
     setInputValue("");
   };
 
   const handleRemoveUrl = (urlToRemove: string) => {
     const filteredUrls = urls.filter((url) => url !== urlToRemove);
-    onChange(filteredUrls);
+    setUrls(filteredUrls);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,7 +49,7 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
 
         // Add to existing URLs, removing duplicates
         const combinedUrls = [...new Set([...urls, ...fileUrls])];
-        onChange(combinedUrls);
+        setUrls(combinedUrls);
       }
     };
     reader.readAsText(file);
@@ -65,8 +58,8 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
   };
 
   const handleSubmit = () => {
-    if (onSubmit && urls.length > 0) {
-      onSubmit(urls);
+    if (urls.length > 0) {
+      onUrlsSubmit(urls);
     }
   };
 
@@ -79,7 +72,6 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           className="min-h-[100px]"
-          disabled={disabled}
         />
       </div>
 
@@ -87,7 +79,7 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
         <Button
           variant="outline"
           onClick={handleAddUrls}
-          disabled={!inputValue.trim() || disabled}
+          disabled={!inputValue.trim()}
         >
           <Upload className="mr-2 h-4 w-4" />
           Add URLs
@@ -100,9 +92,8 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
             className="absolute inset-0 opacity-0 w-full cursor-pointer"
             accept=".txt,.csv"
             onChange={handleFileUpload}
-            disabled={disabled}
           />
-          <Button variant="outline" disabled={disabled}>
+          <Button variant="outline">
             <FileUp className="mr-2 h-4 w-4" />
             Upload URL List
           </Button>
@@ -113,12 +104,7 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
         <div className="flex justify-between items-center">
           <Label>URL List ({urls.length})</Label>
           {urls.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onChange([])}
-              disabled={disabled}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setUrls([])}>
               Clear All
             </Button>
           )}
@@ -137,7 +123,6 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
                     variant="ghost"
                     size="icon"
                     onClick={() => handleRemoveUrl(url)}
-                    disabled={disabled}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -152,16 +137,11 @@ const BatchUrlInput: React.FC<BatchUrlInputProps> = ({
         )}
       </div>
 
-      {onSubmit && (
-        <div className="flex justify-end">
-          <Button
-            onClick={handleSubmit}
-            disabled={urls.length === 0 || disabled}
-          >
-            Process {urls.length} URLs
-          </Button>
-        </div>
-      )}
+      <div className="flex justify-end">
+        <Button onClick={handleSubmit} disabled={urls.length === 0}>
+          Process {urls.length} URLs
+        </Button>
+      </div>
     </div>
   );
 };

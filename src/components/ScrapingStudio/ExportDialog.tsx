@@ -11,7 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { exportScrapedData } from "@/api/services/scrapeService";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Database,
   FileJson,
@@ -20,7 +20,6 @@ import {
   Save,
   Vector,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ExportDialogProps {
   open: boolean;
@@ -54,9 +53,60 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
       setIsExporting(true);
 
       // Generate the export content
-      const content = await exportScrapedData(data, exportFormat, {
-        tableName: tableName,
-      });
+      let content = "";
+
+      // Simple implementation for demo purposes
+      if (exportFormat === "json") {
+        content = JSON.stringify(data, null, 2);
+      } else if (exportFormat === "csv") {
+        // Basic CSV conversion
+        if (data && data.length > 0) {
+          const headers = Object.keys(data[0]).join(",");
+          const rows = data.map((item: any) =>
+            Object.values(item)
+              .map((value) =>
+                typeof value === "string"
+                  ? `"${value.replace(/"/g, '""')}"`
+                  : value,
+              )
+              .join(","),
+          );
+          content = [headers, ...rows].join("\n");
+        }
+      } else if (exportFormat === "sql") {
+        // Basic SQL conversion
+        if (data && data.length > 0) {
+          const columns = Object.keys(data[0]);
+          content = `CREATE TABLE ${tableName} (\n`;
+          content += columns.map((col) => `  ${col} TEXT`).join(",\n");
+          content += "\n);\n\n";
+
+          data.forEach((item: any) => {
+            const values = columns.map((col) => {
+              const value = item[col];
+              return typeof value === "string"
+                ? `'${value.replace(/'/g, "''")}'`
+                : value;
+            });
+
+            content += `INSERT INTO ${tableName} (${columns.join(", ")}) VALUES (${values.join(", ")});\n`;
+          });
+        }
+      } else if (exportFormat === "vector") {
+        // Vector format (simplified for demo)
+        content = JSON.stringify(
+          {
+            vectors: data,
+            metadata: {
+              format: "vector",
+              dimensions: data.length,
+              created: new Date().toISOString(),
+            },
+          },
+          null,
+          2,
+        );
+      }
 
       setExportedContent(content);
 
